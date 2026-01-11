@@ -1,4 +1,4 @@
-@import "tailwind.css";
+@import "tailwindcss";
 
 :root {
   --mx-primary-dark: #0f172a;
@@ -28,7 +28,6 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Optional: remove default body margin in case base reset isn't applied for any reason */
 body {
   margin: 0;
 }
