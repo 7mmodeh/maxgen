@@ -16,22 +16,18 @@ export const metadata: Metadata = {
   },
   icons: {
     icon: "/favicon.ico",
+    apple: "/apple-icon.png",
   },
 };
 
 export default function RootLayout({
   children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+}: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en">
       <body
-        style={{
-          background: "var(--mx-bg)",
-          color: "var(--mx-text)",
-        }}
         className="min-h-screen antialiased"
+        style={{ background: "var(--mx-bg)", color: "var(--mx-text)" }}
       >
         {children}
       </body>
