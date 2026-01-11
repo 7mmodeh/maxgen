@@ -1,4 +1,4 @@
-@import "tailwindcss";
+@import "tailwind.css";
 
 :root {
   --mx-primary-dark: #0f172a;
@@ -14,15 +14,24 @@
   --mx-muted: var(--mx-neutral-gray);
   --mx-cta: var(--mx-accent-blue);
   --mx-cta-hover: var(--mx-light-accent);
+
+  color-scheme: dark;
 }
 
-/* Optional but recommended: lock the whole site to your theme */
 html,
 body {
   background: var(--mx-bg);
   color: var(--mx-text);
+  scroll-behavior: smooth;
+  text-rendering: geometricPrecision;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
+/* Optional: remove default body margin in case base reset isn't applied for any reason */
+body {
+  margin: 0;
+}
 
 @layer utilities {
   .mx-h1 {
