@@ -1,0 +1,24 @@
+@import "tailwindcss";
+
+:root {
+  --mx-primary-dark: #0f172a;
+  --mx-secondary-dark: #1e293b;
+  --mx-accent-blue: #2563eb;
+  --mx-light-accent: #38bdf8;
+  --mx-neutral-gray: #9ca3af;
+  --mx-black: #000000;
+
+  --mx-bg: var(--mx-primary-dark);
+  --mx-surface: var(--mx-secondary-dark);
+  --mx-text: #ffffff;
+  --mx-muted: var(--mx-neutral-gray);
+  --mx-cta: var(--mx-accent-blue);
+  --mx-cta-hover: var(--mx-light-accent);
+}
+
+/* Optional but recommended: lock the whole site to your theme */
+html,
+body {
+  background: var(--mx-bg);
+  color: var(--mx-text);
+}
