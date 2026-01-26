@@ -463,10 +463,12 @@ export default function Home() {
       >
         <div className="mx-auto flex w-full max-w-6xl flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div className="text-xs mx-muted">
-            © {new Date().getFullYear()} Maxgen Systems. All rights reserved.
+            © {new Date().getFullYear()} Maxgen Systems Limited. All rights
+            reserved.
           </div>
+
           <div className="text-xs mx-muted">
-            Contact:{" "}
+            Maxgen Systems Limited (Ireland) — CRO: 806565 —{" "}
             <a
               href="mailto:info@maxgensys.com"
               className="underline underline-offset-4 hover:opacity-90"
