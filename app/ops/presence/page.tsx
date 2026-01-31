@@ -16,7 +16,16 @@ type ProfileRow = {
   role: UserRole;
 };
 
-type PresenceOrderRow = {
+type PresenceOrderListRow = {
+  id: string;
+  user_id: string;
+  package_key: string;
+  status: string;
+  created_at: string;
+  updated_at: string;
+};
+
+type PresenceOrderDetailRow = {
   id: string;
   user_id: string;
   package_key: string;
@@ -39,7 +48,7 @@ function isUuid(v: string): boolean {
 export default async function OpsPresencePage({
   searchParams,
 }: {
-  searchParams: { id?: string };
+  searchParams?: { id?: string };
 }) {
   const supabase = await supabaseServer();
   const { data: u } = await supabase.auth.getUser();
@@ -62,12 +71,14 @@ export default async function OpsPresencePage({
   }
 
   // Admin gate (service role read)
-  const { data: meProfile, error: meErr } = await supabaseAdmin
+  const meRes = await supabaseAdmin
     .from("profiles")
     .select("user_id,email,role")
     .eq("user_id", user.id)
-    .maybeSingle()
-    .returns<ProfileRow | null>();
+    .maybeSingle();
+
+  const meProfile = meRes.data as ProfileRow | null;
+  const meErr = meRes.error;
 
   if (meErr || !meProfile || !isAdmin(meProfile.role)) {
     return (
@@ -110,20 +121,22 @@ export default async function OpsPresencePage({
       );
     }
 
-    const { data: order, error } = await supabaseAdmin
+    const orderRes = await supabaseAdmin
       .from("presence_orders")
       .select("id,user_id,package_key,status,onboarding,created_at,updated_at")
       .eq("id", id)
-      .maybeSingle()
-      .returns<PresenceOrderRow | null>();
+      .maybeSingle();
 
-    if (error) {
+    const order = orderRes.data as PresenceOrderDetailRow | null;
+    const orderErr = orderRes.error;
+
+    if (orderErr) {
       return (
         <main className="mx-auto w-full max-w-5xl px-6 py-16">
           <h1 className="text-2xl font-semibold">Presence Ops</h1>
           <p className="mt-2 text-sm opacity-80">Failed to load order.</p>
           <pre className="mt-4 rounded-xl border p-4 text-xs overflow-auto">
-            {error.message}
+            {orderErr.message}
           </pre>
           <Link
             href="/ops/presence"
@@ -150,12 +163,13 @@ export default async function OpsPresencePage({
       );
     }
 
-    const { data: customerProfile } = await supabaseAdmin
+    const customerRes = await supabaseAdmin
       .from("profiles")
       .select("user_id,email,role")
       .eq("user_id", order.user_id)
-      .maybeSingle()
-      .returns<ProfileRow | null>();
+      .maybeSingle();
+
+    const customerProfile = customerRes.data as ProfileRow | null;
 
     return (
       <main className="mx-auto w-full max-w-6xl px-6 py-16">
@@ -226,12 +240,14 @@ export default async function OpsPresencePage({
   // -------------------------
   // LIST VIEW: /ops/presence
   // -------------------------
-  const { data: orders, error: ordersErr } = await supabaseAdmin
+  const ordersRes = await supabaseAdmin
     .from("presence_orders")
     .select("id,user_id,package_key,status,created_at,updated_at")
     .order("created_at", { ascending: false })
-    .limit(200)
-    .returns<PresenceOrderRow[]>();
+    .limit(200);
+
+  const orders = (ordersRes.data as PresenceOrderListRow[] | null) ?? null;
+  const ordersErr = ordersRes.error;
 
   if (ordersErr) {
     return (
@@ -246,14 +262,18 @@ export default async function OpsPresencePage({
   }
 
   const userIds = Array.from(new Set((orders ?? []).map((o) => o.user_id)));
-  const { data: profiles } = await supabaseAdmin
-    .from("profiles")
-    .select("user_id,email,role")
-    .in("user_id", userIds)
-    .returns<ProfileRow[]>();
 
+  const profilesRes =
+    userIds.length > 0
+      ? await supabaseAdmin
+          .from("profiles")
+          .select("user_id,email,role")
+          .in("user_id", userIds)
+      : { data: [], error: null };
+
+  const profiles = (profilesRes.data as ProfileRow[] | null) ?? [];
   const emailByUserId = new Map<string, string>();
-  (profiles ?? []).forEach((p) => {
+  profiles.forEach((p) => {
     if (p.email) emailByUserId.set(p.user_id, p.email);
   });
 
@@ -301,9 +321,7 @@ export default async function OpsPresencePage({
                   </span>
                 </td>
                 <td className="p-3">
-                  <td className="p-3">
-                    <OpenOrderButton id={o.id} />
-                  </td>
+                  <OpenOrderButton id={o.id} />
                 </td>
               </tr>
             ))}
