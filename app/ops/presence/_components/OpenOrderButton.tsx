@@ -1,22 +1,13 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { startTransition } from "react";
+import Link from "next/link";
 
 export default function OpenOrderButton({ id }: { id: string }) {
-  const router = useRouter();
+  const href = `/ops/presence?id=${encodeURIComponent(id)}`;
 
   return (
-    <button
-      type="button"
-      className="underline underline-offset-4"
-      onClick={() => {
-        startTransition(() => {
-          router.push(`/ops/presence?id=${encodeURIComponent(id)}`);
-        });
-      }}
-    >
+    <Link href={href} className="underline underline-offset-4" prefetch={false}>
       Open
-    </button>
+    </Link>
   );
 }

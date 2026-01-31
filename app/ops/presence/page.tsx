@@ -321,9 +321,7 @@ export default async function OpsPresencePage({
                   </span>
                 </td>
                 <link>
-                  <td className="p-3">
-                    <OpenOrderButton id={o.id} />
-                  </td>
+                  <OpenOrderButton id={o.id} />
                 </link>
               </tr>
             ))}
