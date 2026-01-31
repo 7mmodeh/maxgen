@@ -1,7 +1,6 @@
-"use client";
-
 import Image from "next/image";
 import { FadeIn, Stagger, Item } from "../_components/motion";
+import Link from "next/link";
 
 type PackageKey = "basic" | "booking" | "seo";
 
@@ -103,7 +102,7 @@ const FAQ = [
   },
   {
     q: "How fast is delivery?",
-    a: "Typically 24–48 hours after you complete onboarding for Basic and Booking. SEO includes ongoing monthly work after initial setup.",
+    a: "Typically 24–48 hours after you complete onboarding for Basic and Booking. SEO includes ongoing monthly execution after initial setup.",
   },
 ];
 
@@ -143,7 +142,7 @@ export default function OnlinePresencePage() {
 
         {/* Nav */}
         <header className="mx-auto flex w-full max-w-6xl items-center justify-between px-6 py-6">
-          <link className="flex items-center gap-3" href="/">
+          <Link href="/" className="flex items-center gap-3">
             <div
               className="relative h-9 w-9 overflow-hidden rounded-md"
               style={{
@@ -166,7 +165,7 @@ export default function OnlinePresencePage() {
               </div>
               <div className="text-xs mx-muted">Online Presence</div>
             </div>
-          </link>
+          </Link>
 
           <nav className="hidden items-center gap-7 md:flex">
             <a className="text-sm mx-muted hover:opacity-90" href="#packages">
@@ -280,6 +279,7 @@ export default function OnlinePresencePage() {
               </Stagger>
             </div>
 
+            {/* Right panel */}
             <div className="md:col-span-5">
               <FadeIn delay={0.08}>
                 <div
@@ -492,20 +492,14 @@ export default function OnlinePresencePage() {
                   </div>
 
                   <div className="mt-6 flex flex-col gap-3">
-                    {/* Placeholder button for OPTION A checkout wiring */}
-                    <button
-                      type="button"
-                      className="rounded-lg px-4 py-3 text-sm font-semibold transition"
+                    {/* Placeholder: until OPTION A checkout wiring is added */}
+                    <a
+                      href="mailto:info@maxgensys.com?subject=Online%20Presence%20-%20Order%20Request&body=Package%3A%20"
+                      className="rounded-lg px-4 py-3 text-sm font-semibold text-center transition"
                       style={{ background: "var(--mx-cta)", color: "#fff" }}
-                      onClick={() => {
-                        // OPTION A will replace this with a real checkout call.
-                        alert(
-                          "Checkout wiring is next (OPTION A). This button is a placeholder for now.",
-                        );
-                      }}
                     >
                       {pkg.cta}
-                    </button>
+                    </a>
 
                     <a
                       href="mailto:info@maxgensys.com?subject=Online%20Presence%20-%20Question"
@@ -520,8 +514,8 @@ export default function OnlinePresencePage() {
                     </a>
 
                     <div className="text-[11px] mx-muted leading-relaxed">
-                      Scope is fixed. Work outside the package is quoted
-                      separately.
+                      Checkout will be enabled next. For now, email to place an
+                      order.
                     </div>
                   </div>
                 </div>
@@ -555,7 +549,7 @@ export default function OnlinePresencePage() {
                   { t: "1) Choose package", d: "Pick Basic, Booking, or SEO." },
                   {
                     t: "2) Secure checkout",
-                    d: "Pay online. You receive a receipt immediately.",
+                    d: "Online payment will be enabled next (Stripe).",
                   },
                   {
                     t: "3) Onboarding form",
