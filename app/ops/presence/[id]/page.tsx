@@ -17,7 +17,6 @@ type PresenceOrderRow = {
   package_key: string;
   status: string;
   onboarding: unknown;
-  stripe_checkout_session_id: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -26,11 +25,58 @@ function isAdmin(role: unknown): role is "admin" {
   return role === "admin";
 }
 
+function isUuid(v: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    v,
+  );
+}
+
 export default async function OpsPresenceDetailPage({
   params,
 }: {
-  params: { id: string };
+  params: { id?: string };
 }) {
+  const rawId = params?.id;
+
+  // Hard guard for params to avoid "undefined" being sent to Postgres
+  if (!rawId || typeof rawId !== "string") {
+    return (
+      <main className="mx-auto w-full max-w-4xl px-6 py-16">
+        <h1 className="text-2xl font-semibold">Presence Ops</h1>
+        <p className="mt-2 text-sm opacity-80">Invalid route parameter.</p>
+        <pre className="mt-4 rounded-xl border p-4 text-xs overflow-auto">
+          params.id = {String(rawId)}
+        </pre>
+        <Link
+          href="/ops/presence"
+          className="mt-6 inline-block underline underline-offset-4"
+        >
+          Back to list
+        </Link>
+      </main>
+    );
+  }
+
+  if (!isUuid(rawId)) {
+    return (
+      <main className="mx-auto w-full max-w-4xl px-6 py-16">
+        <h1 className="text-2xl font-semibold">Presence Ops</h1>
+        <p className="mt-2 text-sm opacity-80">
+          Invalid order id (not a UUID).
+        </p>
+        <pre className="mt-4 rounded-xl border p-4 text-xs overflow-auto">
+          id = {rawId}
+        </pre>
+        <Link
+          href="/ops/presence"
+          className="mt-6 inline-block underline underline-offset-4"
+        >
+          Back to list
+        </Link>
+      </main>
+    );
+  }
+
   const supabase = await supabaseServer();
   const { data: u } = await supabase.auth.getUser();
   const user = u.user;
@@ -41,7 +87,7 @@ export default async function OpsPresenceDetailPage({
         <h1 className="text-2xl font-semibold">Presence Ops</h1>
         <p className="mt-2 text-sm opacity-80">Please sign in.</p>
         <Link
-          href={`/login?next=${encodeURIComponent(`/ops/presence/${params.id}`)}`}
+          href={`/login?next=${encodeURIComponent(`/ops/presence/${rawId}`)}`}
           className="mt-6 inline-block rounded-lg px-5 py-3 text-sm font-semibold"
           style={{ background: "var(--mx-cta)", color: "#fff" }}
         >
@@ -51,6 +97,7 @@ export default async function OpsPresenceDetailPage({
     );
   }
 
+  // Admin gate (service role read)
   const { data: meProfile } = await supabaseAdmin
     .from("profiles")
     .select("user_id,email,role")
@@ -76,7 +123,7 @@ export default async function OpsPresenceDetailPage({
   const { data: order, error } = await supabaseAdmin
     .from("presence_orders")
     .select("id,user_id,package_key,status,onboarding,created_at,updated_at")
-    .eq("id", params.id)
+    .eq("id", rawId)
     .maybeSingle()
     .returns<PresenceOrderRow | null>();
 
@@ -125,9 +172,7 @@ export default async function OpsPresenceDetailPage({
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold">Presence Order</h1>
-          <p className="mt-2 text-sm opacity-80">
-            Admin fulfillment view — update status and copy onboarding.
-          </p>
+          <p className="mt-2 text-sm opacity-80">Admin fulfillment view.</p>
         </div>
         <div className="flex gap-3">
           <Link
@@ -173,12 +218,6 @@ export default async function OpsPresenceDetailPage({
             <div>
               <span className="opacity-70">Created:</span>{" "}
               {new Date(order.created_at).toLocaleString()}
-            </div>
-            <div className="pt-2">
-              <span className="opacity-70">Checkout session:</span>
-              <div className="mt-1 font-mono text-xs break-all opacity-90">
-                {order.stripe_checkout_session_id ?? "—"}
-              </div>
             </div>
           </div>
 

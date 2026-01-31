@@ -13,7 +13,6 @@ type PresenceOrderRow = {
   id: string;
   package_key: string;
   status: string;
-  stripe_checkout_session_id: string | null;
   created_at: string;
 };
 
@@ -45,11 +44,13 @@ export default async function AccountPage() {
     supabase
       .from("entitlements")
       .select("product_key,plan,status,expires_at,updated_at")
+      .eq("user_id", user.id)
       .order("updated_at", { ascending: false })
       .returns<EntitlementRow[]>(),
     supabase
       .from("presence_orders")
-      .select("id,package_key,status,stripe_checkout_session_id,created_at")
+      .select("id,package_key,status,created_at")
+      .eq("user_id", user.id)
       .order("created_at", { ascending: false })
       .returns<PresenceOrderRow[]>(),
   ]);
@@ -122,7 +123,6 @@ export default async function AccountPage() {
                 <th className="text-left p-3">id</th>
                 <th className="text-left p-3">package_key</th>
                 <th className="text-left p-3">status</th>
-                <th className="text-left p-3">checkout_session</th>
                 <th className="text-left p-3">created_at</th>
               </tr>
             </thead>
@@ -132,9 +132,6 @@ export default async function AccountPage() {
                   <td className="p-3 font-mono">{o.id}</td>
                   <td className="p-3">{o.package_key}</td>
                   <td className="p-3">{o.status}</td>
-                  <td className="p-3 font-mono break-all">
-                    {o.stripe_checkout_session_id ?? "—"}
-                  </td>
                   <td className="p-3">
                     {new Date(o.created_at).toLocaleString()}
                   </td>
@@ -142,7 +139,7 @@ export default async function AccountPage() {
               ))}
               {(presenceOrders ?? []).length === 0 ? (
                 <tr>
-                  <td className="p-3 opacity-70" colSpan={5}>
+                  <td className="p-3 opacity-70" colSpan={4}>
                     No presence orders yet.
                   </td>
                 </tr>
