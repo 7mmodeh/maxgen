@@ -320,9 +320,11 @@ export default async function OpsPresencePage({
                     {o.status}
                   </span>
                 </td>
-                <td className="p-3">
-                  <OpenOrderButton id={o.id} />
-                </td>
+                <link>
+                  <td className="p-3">
+                    <OpenOrderButton id={o.id} />
+                  </td>
+                </link>
               </tr>
             ))}
             {(orders ?? []).length === 0 ? (
