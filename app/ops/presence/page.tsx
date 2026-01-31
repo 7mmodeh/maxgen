@@ -2,6 +2,7 @@ import Link from "next/link";
 import { supabaseServer } from "@/src/lib/supabase/server";
 import { supabaseAdmin } from "@/src/lib/supabase-admin";
 import PresenceStatusButtons from "./_components/PresenceStatusButtons";
+import OpenOrderButton from "./_components/OpenOrderButton";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -300,12 +301,9 @@ export default async function OpsPresencePage({
                   </span>
                 </td>
                 <td className="p-3">
-                  <Link
-                    href={`/ops/presence?id=${encodeURIComponent(o.id)}`}
-                    className="underline underline-offset-4"
-                  >
-                    Open
-                  </Link>
+                  <td className="p-3">
+                    <OpenOrderButton id={o.id} />
+                  </td>
                 </td>
               </tr>
             ))}
