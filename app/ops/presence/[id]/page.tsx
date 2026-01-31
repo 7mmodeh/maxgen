@@ -75,14 +75,30 @@ export default async function OpsPresenceDetailPage({
 
   const { data: order, error } = await supabaseAdmin
     .from("presence_orders")
-    .select(
-      "id,user_id,package_key,status,onboarding,stripe_checkout_session_id,created_at,updated_at",
-    )
+    .select("id,user_id,package_key,status,onboarding,created_at,updated_at")
     .eq("id", params.id)
     .maybeSingle()
     .returns<PresenceOrderRow | null>();
 
-  if (error || !order) {
+  if (error) {
+    return (
+      <main className="mx-auto w-full max-w-4xl px-6 py-16">
+        <h1 className="text-2xl font-semibold">Presence Ops</h1>
+        <p className="mt-2 text-sm opacity-80">Failed to load order.</p>
+        <pre className="mt-4 rounded-xl border p-4 text-xs overflow-auto">
+          {error.message}
+        </pre>
+        <Link
+          href="/ops/presence"
+          className="mt-6 inline-block underline underline-offset-4"
+        >
+          Back to list
+        </Link>
+      </main>
+    );
+  }
+
+  if (!order) {
     return (
       <main className="mx-auto w-full max-w-4xl px-6 py-16">
         <h1 className="text-2xl font-semibold">Presence Ops</h1>
