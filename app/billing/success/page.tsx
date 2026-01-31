@@ -24,12 +24,20 @@ export default function BillingSuccessPage({
 
       <div className="mt-8 flex flex-col gap-3 sm:flex-row">
         <Link
-          href="/account"
+          href="/presence"
           className="rounded-lg px-5 py-3 text-sm font-semibold"
           style={{ background: "var(--mx-cta)", color: "#fff" }}
         >
+          Continue to Onboarding
+        </Link>
+
+        <Link
+          href="/account"
+          className="rounded-lg px-5 py-3 text-sm font-semibold border"
+        >
           Go to Account
         </Link>
+
         <Link
           href="/online-presence"
           className="rounded-lg px-5 py-3 text-sm font-semibold border"
