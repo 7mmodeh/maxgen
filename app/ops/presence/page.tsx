@@ -1,17 +1,9 @@
 import Link from "next/link";
 import { supabaseServer } from "@/src/lib/supabase/server";
 import { supabaseAdmin } from "@/src/lib/supabase-admin";
+import PresenceStatusButtons from "./_components/PresenceStatusButtons";
 
 type UserRole = "user" | "b2b_pending" | "b2b_approved" | "admin";
-
-type PresenceOrderRow = {
-  id: string;
-  user_id: string;
-  package_key: string;
-  status: string;
-  created_at: string;
-  updated_at: string;
-};
 
 type ProfileRow = {
   user_id: string;
@@ -19,11 +11,31 @@ type ProfileRow = {
   role: UserRole;
 };
 
+type PresenceOrderRow = {
+  id: string;
+  user_id: string;
+  package_key: string;
+  status: string;
+  onboarding: unknown;
+  created_at: string;
+  updated_at: string;
+};
+
 function isAdmin(role: unknown): role is "admin" {
   return role === "admin";
 }
 
-export default async function OpsPresenceListPage() {
+function isUuid(v: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    v,
+  );
+}
+
+export default async function OpsPresencePage({
+  searchParams,
+}: {
+  searchParams?: { id?: string };
+}) {
   const supabase = await supabaseServer();
   const { data: u } = await supabase.auth.getUser();
   const user = u.user;
@@ -44,7 +56,7 @@ export default async function OpsPresenceListPage() {
     );
   }
 
-  // Check role via service role to avoid RLS edge cases
+  // Admin gate (service role read)
   const { data: meProfile, error: meErr } = await supabaseAdmin
     .from("profiles")
     .select("user_id,email,role")
@@ -67,6 +79,148 @@ export default async function OpsPresenceListPage() {
     );
   }
 
+  const id = searchParams?.id ?? null;
+
+  // -------------------------
+  // DETAIL VIEW: /ops/presence?id=<uuid>
+  // -------------------------
+  if (id) {
+    if (!isUuid(id)) {
+      return (
+        <main className="mx-auto w-full max-w-5xl px-6 py-16">
+          <h1 className="text-2xl font-semibold">Presence Ops</h1>
+          <p className="mt-2 text-sm opacity-80">
+            Invalid order id (not a UUID).
+          </p>
+          <pre className="mt-4 rounded-xl border p-4 text-xs overflow-auto">
+            id = {id}
+          </pre>
+          <Link
+            href="/ops/presence"
+            className="mt-6 inline-block underline underline-offset-4"
+          >
+            Back to list
+          </Link>
+        </main>
+      );
+    }
+
+    const { data: order, error } = await supabaseAdmin
+      .from("presence_orders")
+      .select("id,user_id,package_key,status,onboarding,created_at,updated_at")
+      .eq("id", id)
+      .maybeSingle()
+      .returns<PresenceOrderRow | null>();
+
+    if (error) {
+      return (
+        <main className="mx-auto w-full max-w-5xl px-6 py-16">
+          <h1 className="text-2xl font-semibold">Presence Ops</h1>
+          <p className="mt-2 text-sm opacity-80">Failed to load order.</p>
+          <pre className="mt-4 rounded-xl border p-4 text-xs overflow-auto">
+            {error.message}
+          </pre>
+          <Link
+            href="/ops/presence"
+            className="mt-6 inline-block underline underline-offset-4"
+          >
+            Back to list
+          </Link>
+        </main>
+      );
+    }
+
+    if (!order) {
+      return (
+        <main className="mx-auto w-full max-w-5xl px-6 py-16">
+          <h1 className="text-2xl font-semibold">Presence Ops</h1>
+          <p className="mt-2 text-sm opacity-80">Order not found.</p>
+          <Link
+            href="/ops/presence"
+            className="mt-6 inline-block underline underline-offset-4"
+          >
+            Back to list
+          </Link>
+        </main>
+      );
+    }
+
+    const { data: customerProfile } = await supabaseAdmin
+      .from("profiles")
+      .select("user_id,email,role")
+      .eq("user_id", order.user_id)
+      .maybeSingle()
+      .returns<ProfileRow | null>();
+
+    return (
+      <main className="mx-auto w-full max-w-6xl px-6 py-16">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-semibold">Presence Order</h1>
+            <p className="mt-2 text-sm opacity-80">Admin fulfillment view.</p>
+          </div>
+          <div className="flex gap-3">
+            <Link
+              href="/ops/presence"
+              className="rounded-lg border px-4 py-2 text-sm font-semibold"
+            >
+              Back to list
+            </Link>
+            <Link
+              href="/account"
+              className="rounded-lg border px-4 py-2 text-sm font-semibold"
+            >
+              Account
+            </Link>
+          </div>
+        </div>
+
+        <div className="mt-10 grid gap-6 md:grid-cols-3">
+          <div className="rounded-xl border p-5 md:col-span-2">
+            <div className="text-sm font-semibold">Onboarding</div>
+            <pre className="mt-4 rounded-xl border p-4 text-xs overflow-auto">
+              {JSON.stringify(order.onboarding ?? {}, null, 2)}
+            </pre>
+          </div>
+
+          <div className="rounded-xl border p-5">
+            <div className="text-sm font-semibold">Order info</div>
+            <div className="mt-4 space-y-2 text-sm">
+              <div>
+                <span className="opacity-70">Customer:</span>{" "}
+                <span className="font-medium">
+                  {customerProfile?.email ?? order.user_id}
+                </span>
+              </div>
+              <div>
+                <span className="opacity-70">Package:</span>{" "}
+                <span className="font-medium">{order.package_key}</span>
+              </div>
+              <div>
+                <span className="opacity-70">Status:</span>{" "}
+                <span className="font-medium">{order.status}</span>
+              </div>
+              <div>
+                <span className="opacity-70">Created:</span>{" "}
+                {new Date(order.created_at).toLocaleString()}
+              </div>
+            </div>
+
+            <div className="mt-6">
+              <PresenceStatusButtons
+                orderId={order.id}
+                currentStatus={order.status}
+              />
+            </div>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
+  // -------------------------
+  // LIST VIEW: /ops/presence
+  // -------------------------
   const { data: orders, error: ordersErr } = await supabaseAdmin
     .from("presence_orders")
     .select("id,user_id,package_key,status,created_at,updated_at")
@@ -76,11 +230,11 @@ export default async function OpsPresenceListPage() {
 
   if (ordersErr) {
     return (
-      <main className="mx-auto w-full max-w-5xl px-6 py-16">
+      <main className="mx-auto w-full max-w-6xl px-6 py-16">
         <h1 className="text-2xl font-semibold">Presence Ops</h1>
         <p className="mt-4 text-sm opacity-80">Failed to load orders.</p>
         <pre className="mt-4 rounded-xl border p-4 text-xs overflow-auto">
-          {String(ordersErr.message)}
+          {ordersErr.message}
         </pre>
       </main>
     );
@@ -107,14 +261,12 @@ export default async function OpsPresenceListPage() {
             Internal fulfillment queue — paid orders → onboarding → delivery.
           </p>
         </div>
-        <div className="flex gap-3">
-          <Link
-            href="/account"
-            className="rounded-lg border px-4 py-2 text-sm font-semibold"
-          >
-            Account
-          </Link>
-        </div>
+        <Link
+          href="/account"
+          className="rounded-lg border px-4 py-2 text-sm font-semibold"
+        >
+          Account
+        </Link>
       </div>
 
       <div className="mt-10 overflow-auto rounded-xl border">
@@ -134,10 +286,8 @@ export default async function OpsPresenceListPage() {
                 <td className="p-3 opacity-80 whitespace-nowrap">
                   {new Date(o.created_at).toLocaleString()}
                 </td>
-                <td className="p-3">
-                  <div className="font-medium">
-                    {emailByUserId.get(o.user_id) ?? o.user_id}
-                  </div>
+                <td className="p-3 font-medium">
+                  {emailByUserId.get(o.user_id) ?? o.user_id}
                 </td>
                 <td className="p-3">{o.package_key}</td>
                 <td className="p-3">
@@ -147,7 +297,7 @@ export default async function OpsPresenceListPage() {
                 </td>
                 <td className="p-3">
                   <Link
-                    href={`/ops/presence/${o.id}`}
+                    href={`/ops/presence?id=${encodeURIComponent(o.id)}`}
                     className="underline underline-offset-4"
                   >
                     Open
