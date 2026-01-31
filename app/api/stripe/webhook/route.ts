@@ -98,9 +98,9 @@ async function upsertPresenceOrder(args: {
   packageKey: "basic" | "booking" | "seo";
   checkoutSessionId: string;
 }) {
-  // NOTE: this requires your table to have:
-  // - stripe_checkout_session_id text
-  // - a unique index on stripe_checkout_session_id (recommended)
+  // Requires:
+  // - presence_orders.stripe_checkout_session_id text
+  // - UNIQUE INDEX on stripe_checkout_session_id
   const now = new Date().toISOString();
 
   const { error } = await supabaseAdmin
@@ -117,28 +117,18 @@ async function upsertPresenceOrder(args: {
       { onConflict: "stripe_checkout_session_id" }
     );
 
-  if (error) {
-    console.error("presence_orders upsert error:", error);
-  }
-}
-
-function presencePackageKeyFromProductKey(
-  productKey: string
-): "basic" | "booking" | "seo" | null {
-  if (productKey === "presence_basic") return "basic";
-  if (productKey === "presence_booking") return "booking";
-  if (productKey === "presence_seo") return "seo";
-  return null;
+  if (error) console.error("presence_orders upsert error:", error);
 }
 
 export async function POST(req: Request) {
   const webhookSecret = assertEnv("STRIPE_WEBHOOK_SECRET");
   const sig = req.headers.get("stripe-signature");
-  if (!sig)
+  if (!sig) {
     return NextResponse.json(
       { error: "Missing stripe-signature" },
       { status: 400 }
     );
+  }
 
   let event: Stripe.Event;
   try {
@@ -165,29 +155,19 @@ export async function POST(req: Request) {
         if (!userId) break;
 
         const stripePaymentIntentId =
-          typeof session.payment_intent === "string" ? session.payment_intent : null;
+          typeof session.payment_intent === "string"
+            ? session.payment_intent
+            : null;
 
         const stripeSubscriptionId =
           typeof session.subscription === "string" ? session.subscription : null;
 
-        // ✅ Presence operational record creation (deterministic, no line-item guessing)
-        // Uses the metadata set in your /api/stripe/checkout route.
-        const metaProductKey = session.metadata?.["product_key"] ?? null;
-        if (metaProductKey) {
-          const pkgKey = presencePackageKeyFromProductKey(metaProductKey);
-          if (pkgKey) {
-            await upsertPresenceOrder({
-              userId,
-              packageKey: pkgKey,
-              checkoutSessionId: session.id,
-            });
-          }
-        }
-
-        // Entitlements: derive from the actual line items (scope-guarded)
+        // Entitlements + Presence order derived from line items (same authoritative source).
         const items = await stripe.checkout.sessions.listLineItems(session.id, {
           limit: 100,
         });
+
+        let presencePackage: "basic" | "booking" | "seo" | null = null;
 
         for (const li of items.data) {
           const priceId = li.price?.id ?? null;
@@ -195,7 +175,16 @@ export async function POST(req: Request) {
 
           const productKey = productKeyFromPriceId(priceId);
           const plan = planFromPriceId(priceId);
+
+          // Scope guard: ignore unknown prices
           if (!productKey || !plan) continue;
+
+          // Presence order: set once based on presence product line item
+          if (!presencePackage) {
+            if (productKey === "presence_basic") presencePackage = "basic";
+            else if (productKey === "presence_booking") presencePackage = "booking";
+            else if (productKey === "presence_seo") presencePackage = "seo";
+          }
 
           await upsertEntitlement({
             userId,
@@ -214,6 +203,16 @@ export async function POST(req: Request) {
             },
           });
         }
+
+        // Create the operational presence order once, if the session included a presence product.
+        if (presencePackage) {
+          await upsertPresenceOrder({
+            userId,
+            packageKey: presencePackage,
+            checkoutSessionId: session.id,
+          });
+        }
+
         break;
       }
 
@@ -276,6 +275,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ received: true }, { status: 200 });
   } catch (e: unknown) {
+    console.error("Webhook handler failed (raw):", e);
     const msg = e instanceof Error ? e.message : String(e);
     console.error("Webhook handler failed:", msg);
     return NextResponse.json(
