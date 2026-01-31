@@ -3,6 +3,10 @@ import { supabaseServer } from "@/src/lib/supabase/server";
 import { supabaseAdmin } from "@/src/lib/supabase-admin";
 import PresenceStatusButtons from "./_components/PresenceStatusButtons";
 
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 type UserRole = "user" | "b2b_pending" | "b2b_approved" | "admin";
 
 type ProfileRow = {
@@ -34,7 +38,7 @@ function isUuid(v: string): boolean {
 export default async function OpsPresencePage({
   searchParams,
 }: {
-  searchParams?: { id?: string };
+  searchParams: { id?: string };
 }) {
   const supabase = await supabaseServer();
   const { data: u } = await supabase.auth.getUser();
