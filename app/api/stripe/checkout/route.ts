@@ -139,9 +139,15 @@ export async function POST(req: Request) {
     });
 
     return NextResponse.json({ url: session.url }, { status: 200 });
-  } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : String(e);
-    console.error("checkout error:", msg);
-    return NextResponse.json({ error: "Checkout failed" }, { status: 500 });
-  }
+    } catch (e: unknown) {
+  console.error("checkout error (raw):", e);
+  const msg = e instanceof Error ? e.message : String(e);
+  console.error("checkout error:", msg);
+  return NextResponse.json({ error: msg }, { status: 500 });
+}
+  // } catch (e: unknown) {
+  //   const msg = e instanceof Error ? e.message : String(e);
+  //   console.error("checkout error:", msg);
+  //   return NextResponse.json({ error: "Checkout failed" }, { status: 500 });
+  // }
 }

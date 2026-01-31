@@ -1,5 +1,8 @@
 import { STRIPE_PRICES } from "@/src/config/stripe-prices";
 
+export const runtime = "nodejs";
+
+
 export type ProductKey =
   | "presence_basic"
   | "presence_booking"
