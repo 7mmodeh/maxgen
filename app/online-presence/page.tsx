@@ -1,6 +1,7 @@
 import Image from "next/image";
 import { FadeIn, Stagger, Item } from "../_components/motion";
 import Link from "next/link";
+import PresenceCheckoutButtons from "../_components/PresenceCheckoutButtons";
 
 type PackageKey = "basic" | "booking" | "seo";
 
@@ -491,33 +492,10 @@ export default function OnlinePresencePage() {
                     {pkg.delivery}
                   </div>
 
-                  <div className="mt-6 flex flex-col gap-3">
-                    {/* Placeholder: until OPTION A checkout wiring is added */}
-                    <a
-                      href="mailto:info@maxgensys.com?subject=Online%20Presence%20-%20Order%20Request&body=Package%3A%20"
-                      className="rounded-lg px-4 py-3 text-sm font-semibold text-center transition"
-                      style={{ background: "var(--mx-cta)", color: "#fff" }}
-                    >
-                      {pkg.cta}
-                    </a>
-
-                    <a
-                      href="mailto:info@maxgensys.com?subject=Online%20Presence%20-%20Question"
-                      className="rounded-lg px-4 py-3 text-sm font-semibold text-center transition"
-                      style={{
-                        border: "1px solid rgba(255,255,255,0.14)",
-                        color: "rgba(255,255,255,0.9)",
-                        background: "rgba(30,41,59,0.25)",
-                      }}
-                    >
-                      Ask before buying
-                    </a>
-
-                    <div className="text-[11px] mx-muted leading-relaxed">
-                      Checkout will be enabled next. For now, email to place an
-                      order.
-                    </div>
-                  </div>
+                  <PresenceCheckoutButtons
+                    tier={pkg.key}
+                    primaryLabel={pkg.cta}
+                  />
                 </div>
               </Item>
             ))}

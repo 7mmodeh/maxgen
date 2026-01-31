@@ -11,7 +11,7 @@ import {
 
 export const runtime = "nodejs";
 
-// Your DB enum labels (confirmed)
+// DB enum labels (confirmed)
 type EntitlementStatus = "active" | "inactive" | "canceled" | "expired";
 
 function assertEnv(name: string): string {
@@ -25,7 +25,9 @@ async function rawBody(req: Request): Promise<Buffer> {
   return Buffer.from(ab);
 }
 
-async function resolveUserIdFromCustomer(stripeCustomerId: string): Promise<string | null> {
+async function resolveUserIdFromCustomer(
+  stripeCustomerId: string
+): Promise<string | null> {
   const { data, error } = await supabaseAdmin
     .from("stripe_customers")
     .select("user_id")
@@ -43,20 +45,14 @@ function mapStripeSubStatusToEnum(
   stripeStatus: Stripe.Subscription.Status,
   eventType: string
 ): EntitlementStatus {
-  // Explicit mapping to your 4-label enum (no assumptions)
   if (stripeStatus === "active" || stripeStatus === "trialing") return "active";
   if (stripeStatus === "canceled") return "canceled";
-
-  // Anything else subscription-related becomes inactive
-  // (past_due, unpaid, incomplete, incomplete_expired, paused)
-  // For deleted event we also treat as canceled via stripeStatus or eventType logic:
   if (eventType === "customer.subscription.deleted") return "canceled";
-
   return "inactive";
 }
 
 function tryGetCurrentPeriodEndIso(sub: Stripe.Subscription): string | null {
-  // Safe runtime access; stripe typings may vary.
+  // Runtime-safe access (Stripe typings may differ by configured apiVersion)
   const maybe = sub as unknown as { current_period_end?: unknown };
   if (typeof maybe.current_period_end === "number") {
     return new Date(maybe.current_period_end * 1000).toISOString();
@@ -86,7 +82,7 @@ async function upsertEntitlement(args: {
     stripe_subscription_id: args.stripeSubscriptionId,
     stripe_payment_intent_id: args.stripePaymentIntentId,
     expires_at: args.expiresAt,
-    metadata: args.metadata, // jsonb NOT NULL
+    metadata: args.metadata,
     updated_at: now,
   };
 
@@ -97,10 +93,52 @@ async function upsertEntitlement(args: {
   if (error) console.error("entitlements upsert error:", error);
 }
 
+async function upsertPresenceOrder(args: {
+  userId: string;
+  packageKey: "basic" | "booking" | "seo";
+  checkoutSessionId: string;
+}) {
+  // NOTE: this requires your table to have:
+  // - stripe_checkout_session_id text
+  // - a unique index on stripe_checkout_session_id (recommended)
+  const now = new Date().toISOString();
+
+  const { error } = await supabaseAdmin
+    .from("presence_orders")
+    .upsert(
+      {
+        user_id: args.userId,
+        package_key: args.packageKey,
+        status: "paid",
+        onboarding: {},
+        stripe_checkout_session_id: args.checkoutSessionId,
+        updated_at: now,
+      },
+      { onConflict: "stripe_checkout_session_id" }
+    );
+
+  if (error) {
+    console.error("presence_orders upsert error:", error);
+  }
+}
+
+function presencePackageKeyFromProductKey(
+  productKey: string
+): "basic" | "booking" | "seo" | null {
+  if (productKey === "presence_basic") return "basic";
+  if (productKey === "presence_booking") return "booking";
+  if (productKey === "presence_seo") return "seo";
+  return null;
+}
+
 export async function POST(req: Request) {
   const webhookSecret = assertEnv("STRIPE_WEBHOOK_SECRET");
   const sig = req.headers.get("stripe-signature");
-  if (!sig) return NextResponse.json({ error: "Missing stripe-signature" }, { status: 400 });
+  if (!sig)
+    return NextResponse.json(
+      { error: "Missing stripe-signature" },
+      { status: 400 }
+    );
 
   let event: Stripe.Event;
   try {
@@ -117,11 +155,13 @@ export async function POST(req: Request) {
       case "checkout.session.completed": {
         const session = event.data.object as Stripe.Checkout.Session;
 
-        const stripeCustomerId = typeof session.customer === "string" ? session.customer : null;
+        const stripeCustomerId =
+          typeof session.customer === "string" ? session.customer : null;
         if (!stripeCustomerId) break;
 
-        const metaUserId = session.metadata?.["supabase_user_id"];
-        const userId = metaUserId || (await resolveUserIdFromCustomer(stripeCustomerId));
+        const metaUserId = session.metadata?.["supabase_user_id"] ?? null;
+        const userId =
+          metaUserId || (await resolveUserIdFromCustomer(stripeCustomerId));
         if (!userId) break;
 
         const stripePaymentIntentId =
@@ -130,7 +170,24 @@ export async function POST(req: Request) {
         const stripeSubscriptionId =
           typeof session.subscription === "string" ? session.subscription : null;
 
-        const items = await stripe.checkout.sessions.listLineItems(session.id, { limit: 100 });
+        // ✅ Presence operational record creation (deterministic, no line-item guessing)
+        // Uses the metadata set in your /api/stripe/checkout route.
+        const metaProductKey = session.metadata?.["product_key"] ?? null;
+        if (metaProductKey) {
+          const pkgKey = presencePackageKeyFromProductKey(metaProductKey);
+          if (pkgKey) {
+            await upsertPresenceOrder({
+              userId,
+              packageKey: pkgKey,
+              checkoutSessionId: session.id,
+            });
+          }
+        }
+
+        // Entitlements: derive from the actual line items (scope-guarded)
+        const items = await stripe.checkout.sessions.listLineItems(session.id, {
+          limit: 100,
+        });
 
         for (const li of items.data) {
           const priceId = li.price?.id ?? null;
@@ -138,7 +195,7 @@ export async function POST(req: Request) {
 
           const productKey = productKeyFromPriceId(priceId);
           const plan = planFromPriceId(priceId);
-          if (!productKey || !plan) continue; // scope guard: ignore unknown prices
+          if (!productKey || !plan) continue;
 
           await upsertEntitlement({
             userId,
@@ -148,7 +205,7 @@ export async function POST(req: Request) {
             stripeCustomerId,
             stripeSubscriptionId: plan === "monthly" ? stripeSubscriptionId : null,
             stripePaymentIntentId: plan === "onetime" ? stripePaymentIntentId : null,
-            expiresAt: null, // monthly expiry set by subscription updated/deleted
+            expiresAt: null,
             metadata: {
               source: "stripe",
               event: "checkout.session.completed",
@@ -164,7 +221,8 @@ export async function POST(req: Request) {
       case "customer.subscription.deleted": {
         const sub = event.data.object as Stripe.Subscription;
 
-        const stripeCustomerId = typeof sub.customer === "string" ? sub.customer : null;
+        const stripeCustomerId =
+          typeof sub.customer === "string" ? sub.customer : null;
         if (!stripeCustomerId) break;
 
         const userId = await resolveUserIdFromCustomer(stripeCustomerId);
@@ -183,6 +241,8 @@ export async function POST(req: Request) {
 
           const productKey = productKeyFromPriceId(priceId);
           const plan = planFromPriceId(priceId);
+
+          // Only monthly entitlements are maintained here
           if (!productKey || plan !== "monthly") continue;
 
           await upsertEntitlement({
@@ -218,6 +278,9 @@ export async function POST(req: Request) {
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
     console.error("Webhook handler failed:", msg);
-    return NextResponse.json({ error: "Webhook handler failed" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Webhook handler failed" },
+      { status: 500 }
+    );
   }
 }
