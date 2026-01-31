@@ -52,8 +52,44 @@ export default function PresenceCheckoutButtons({ tier, primaryLabel }: Props) {
       });
 
       if (!res.ok) {
-        const txt = await res.text();
-        throw new Error(`Checkout failed (${res.status}): ${txt}`);
+        const { data, error } = await supabaseBrowser.auth.getSession();
+        if (error) throw error;
+
+        const accessToken = data.session?.access_token;
+        if (!accessToken) {
+          const next = encodeURIComponent("/online-presence#packages");
+          window.location.href = `/login?next=${next}`;
+          return;
+        }
+
+        const res = await fetch("/api/stripe/checkout", {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            authorization: `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify(body),
+        });
+
+        const text = await res.text();
+
+        // 🔥 Temporary debug: surface the server message
+        if (!res.ok) {
+          console.error("checkout failed", res.status, text);
+          alert(`Checkout failed (${res.status}): ${text}`);
+          return;
+        }
+
+        let json: unknown;
+        try {
+          json = JSON.parse(text);
+        } catch {
+          throw new Error(`Checkout returned non-JSON: ${text}`);
+        }
+
+        const url = (json as { url?: string }).url;
+        if (!url) throw new Error(`Checkout did not return url: ${text}`);
+        window.location.href = url;
       }
 
       const json = (await res.json()) as { url?: string };
