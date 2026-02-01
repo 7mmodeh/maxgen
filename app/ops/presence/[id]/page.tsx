@@ -68,7 +68,7 @@ export default async function OpsPresenceDetailPage({
   params: { id?: string };
 }) {
   // Unique fingerprint to prove which file is executing in production
-  const FILE_FINGERPRINT = "OPS_PRESENCE_DETAIL_VERCEL_DEBUG_v2";
+  const FILE_FINGERPRINT = "OPS_PRESENCE_DETAIL_VERCEL_DEBUG_v3";
 
   const rawId = params?.id;
   const decodedId = tryDecodeURIComponent(rawId);
