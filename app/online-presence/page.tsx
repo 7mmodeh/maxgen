@@ -308,7 +308,7 @@ export default async function OnlinePresencePage() {
 
             {user ? (
               <div className="flex items-center gap-2">
-                <div
+                {/* <div
                   className="hidden md:block rounded-full px-3 py-1 text-xs"
                   style={{
                     background: "rgba(15,23,42,0.45)",
@@ -318,7 +318,7 @@ export default async function OnlinePresencePage() {
                   title={user.email ?? undefined}
                 >
                   Signed in{user.email ? `: ${user.email}` : ""}
-                </div>
+                </div> */}
 
                 {/* ✅ Docs button (visible when signed in too) */}
                 <Link
