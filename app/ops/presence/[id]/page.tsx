@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { supabaseServer } from "@/src/lib/supabase/server";
-import { supabaseAdmin } from "@/src/lib/supabase-admin";
+import { getSupabaseAdmin } from "@/src/lib/supabase-admin";
 import PresenceStatusButtons from "../_components/PresenceStatusButtons";
 
 type UserRole = "user" | "b2b_pending" | "b2b_approved" | "admin";
@@ -98,7 +98,7 @@ export default async function OpsPresenceDetailPage({
   }
 
   // Admin gate (service role read)
-  const { data: meProfile } = await supabaseAdmin
+  const { data: meProfile } = await getSupabaseAdmin()
     .from("profiles")
     .select("user_id,email,role")
     .eq("user_id", user.id)
@@ -120,7 +120,7 @@ export default async function OpsPresenceDetailPage({
     );
   }
 
-  const { data: order, error } = await supabaseAdmin
+  const { data: order, error } = await getSupabaseAdmin()
     .from("presence_orders")
     .select("id,user_id,package_key,status,onboarding,created_at,updated_at")
     .eq("id", rawId)
@@ -160,7 +160,7 @@ export default async function OpsPresenceDetailPage({
     );
   }
 
-  const { data: customerProfile } = await supabaseAdmin
+  const { data: customerProfile } = await getSupabaseAdmin()
     .from("profiles")
     .select("user_id,email,role")
     .eq("user_id", order.user_id)

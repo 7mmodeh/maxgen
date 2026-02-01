@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { supabaseAdmin } from "@/src/lib/supabase-admin";
+import { getSupabaseAdmin } from "@/src/lib/supabase-admin";
 
 export const runtime = "nodejs";
 
@@ -22,7 +22,7 @@ async function userFromBearer(req: Request) {
   const token = auth.startsWith("Bearer ") ? auth.slice(7) : null;
   if (!token) return null;
 
-  const { data, error } = await supabaseAdmin.auth.getUser(token);
+  const { data, error } = await getSupabaseAdmin().auth.getUser(token);
   if (error || !data?.user) return null;
   return data.user;
 }
@@ -40,7 +40,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Invalid request" }, { status: 400 });
     }
 
-    const { data: profile, error: pErr } = await supabaseAdmin
+    const { data: profile, error: pErr } = await getSupabaseAdmin()
       .from("profiles")
       .select("role")
       .eq("user_id", user.id)
@@ -51,7 +51,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const { error: updErr } = await supabaseAdmin
+    const { error: updErr } = await getSupabaseAdmin()
       .from("presence_orders")
       .update({ status, updated_at: new Date().toISOString() })
       .eq("id", orderId);

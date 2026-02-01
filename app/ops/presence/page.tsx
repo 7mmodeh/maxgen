@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { supabaseServer } from "@/src/lib/supabase/server";
-import { supabaseAdmin } from "@/src/lib/supabase-admin";
+import { getSupabaseAdmin } from "@/src/lib/supabase-admin";
 import PresenceStatusButtons from "./_components/PresenceStatusButtons";
 import OpenOrderButton from "./_components/OpenOrderButton";
 
@@ -71,7 +71,7 @@ export default async function OpsPresencePage({
   }
 
   // Admin gate (service role read)
-  const meRes = await supabaseAdmin
+  const meRes = await getSupabaseAdmin()
     .from("profiles")
     .select("user_id,email,role")
     .eq("user_id", user.id)
@@ -121,7 +121,7 @@ export default async function OpsPresencePage({
       );
     }
 
-    const orderRes = await supabaseAdmin
+    const orderRes = await getSupabaseAdmin()
       .from("presence_orders")
       .select("id,user_id,package_key,status,onboarding,created_at,updated_at")
       .eq("id", id)
@@ -163,7 +163,7 @@ export default async function OpsPresencePage({
       );
     }
 
-    const customerRes = await supabaseAdmin
+    const customerRes = await getSupabaseAdmin()
       .from("profiles")
       .select("user_id,email,role")
       .eq("user_id", order.user_id)
@@ -240,7 +240,7 @@ export default async function OpsPresencePage({
   // -------------------------
   // LIST VIEW: /ops/presence
   // -------------------------
-  const ordersRes = await supabaseAdmin
+  const ordersRes = await getSupabaseAdmin()
     .from("presence_orders")
     .select("id,user_id,package_key,status,created_at,updated_at")
     .order("created_at", { ascending: false })
@@ -265,7 +265,7 @@ export default async function OpsPresencePage({
 
   const profilesRes =
     userIds.length > 0
-      ? await supabaseAdmin
+      ? await getSupabaseAdmin()
           .from("profiles")
           .select("user_id,email,role")
           .in("user_id", userIds)
