@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { supabaseServer } from "@/src/lib/supabase/server";
 import { getSupabaseAdmin } from "@/src/lib/supabase-admin";
+import PresenceStatusButtons from "./_components/PresenceStatusButtons";
 import OpenOrderButton from "./_components/OpenOrderButton";
 
 export const runtime = "nodejs";
@@ -15,11 +16,12 @@ type ProfileRow = {
   role: UserRole;
 };
 
-type PresenceOrderListRow = {
+type PresenceOrderRow = {
   id: string;
   user_id: string;
   package_key: string;
   status: string;
+  onboarding: unknown;
   created_at: string;
   updated_at: string;
 };
@@ -34,22 +36,19 @@ function isUuid(v: string): boolean {
   );
 }
 
-function toDebugString(v: unknown): string {
-  if (v === null) return "null";
-  if (v === undefined) return "undefined";
-  if (typeof v === "string") return v.length ? v : "(empty string)";
-  if (typeof v === "number" || typeof v === "boolean") return String(v);
-  if (typeof v === "bigint") return v.toString();
-  if (typeof v === "symbol") return v.toString();
-  if (typeof v === "function") return "[function]";
+function safeDecodeURIComponent(v: string): string {
   try {
-    return JSON.stringify(v);
+    return decodeURIComponent(v);
   } catch {
-    return "[unserializable]";
+    return v;
   }
 }
 
-export default async function OpsPresenceListPage() {
+export default async function OpsPresencePage({
+  searchParams,
+}: {
+  searchParams?: { id?: string | string[] };
+}) {
   const supabase = await supabaseServer();
   const { data: u } = await supabase.auth.getUser();
   const user = u.user;
@@ -72,6 +71,7 @@ export default async function OpsPresenceListPage() {
 
   const admin = getSupabaseAdmin();
 
+  // Admin gate
   const meRes = await admin
     .from("profiles")
     .select("user_id,email,role")
@@ -79,9 +79,8 @@ export default async function OpsPresenceListPage() {
     .maybeSingle();
 
   const meProfile = meRes.data as ProfileRow | null;
-  const meErr = meRes.error;
 
-  if (meErr || !meProfile || !isAdmin(meProfile.role)) {
+  if (meRes.error || !meProfile || !isAdmin(meProfile.role)) {
     return (
       <main className="mx-auto w-full max-w-5xl px-6 py-16">
         <h1 className="text-2xl font-semibold">Presence Ops</h1>
@@ -97,22 +96,183 @@ export default async function OpsPresenceListPage() {
     );
   }
 
+  const rawIdParam = searchParams?.id;
+  const idParam =
+    typeof rawIdParam === "string"
+      ? rawIdParam
+      : Array.isArray(rawIdParam) && rawIdParam.length > 0
+        ? rawIdParam[0]
+        : null;
+
+  const decodedId = idParam ? safeDecodeURIComponent(idParam).trim() : null;
+
+  // -------------------------
+  // DETAIL VIEW: /ops/presence?id=<uuid>
+  // -------------------------
+  if (decodedId) {
+    if (!isUuid(decodedId)) {
+      return (
+        <main className="mx-auto w-full max-w-5xl px-6 py-16">
+          <h1 className="text-2xl font-semibold">Presence Ops</h1>
+          <p className="mt-2 text-sm opacity-80">
+            Invalid order id (not a UUID).
+          </p>
+          <div className="mt-4 rounded-xl border p-4 text-xs overflow-auto">
+            <div>
+              <span className="opacity-70">searchParams.id:</span>{" "}
+              <span className="font-mono">{decodedId}</span>
+            </div>
+          </div>
+          <Link
+            href="/ops/presence"
+            prefetch={false}
+            className="mt-6 inline-block underline underline-offset-4"
+          >
+            Back to list
+          </Link>
+        </main>
+      );
+    }
+
+    const orderRes = await admin
+      .from("presence_orders")
+      .select("id,user_id,package_key,status,onboarding,created_at,updated_at")
+      .eq("id", decodedId)
+      .maybeSingle();
+
+    const order = orderRes.data as PresenceOrderRow | null;
+
+    if (orderRes.error) {
+      return (
+        <main className="mx-auto w-full max-w-5xl px-6 py-16">
+          <h1 className="text-2xl font-semibold">Presence Ops</h1>
+          <p className="mt-2 text-sm opacity-80">Failed to load order.</p>
+          <pre className="mt-4 rounded-xl border p-4 text-xs overflow-auto">
+            {orderRes.error.message}
+          </pre>
+          <Link
+            href="/ops/presence"
+            prefetch={false}
+            className="mt-6 inline-block underline underline-offset-4"
+          >
+            Back to list
+          </Link>
+        </main>
+      );
+    }
+
+    if (!order) {
+      return (
+        <main className="mx-auto w-full max-w-5xl px-6 py-16">
+          <h1 className="text-2xl font-semibold">Presence Ops</h1>
+          <p className="mt-2 text-sm opacity-80">Order not found.</p>
+          <Link
+            href="/ops/presence"
+            prefetch={false}
+            className="mt-6 inline-block underline underline-offset-4"
+          >
+            Back to list
+          </Link>
+        </main>
+      );
+    }
+
+    const customerRes = await admin
+      .from("profiles")
+      .select("user_id,email,role")
+      .eq("user_id", order.user_id)
+      .maybeSingle();
+
+    const customerProfile = customerRes.data as ProfileRow | null;
+
+    return (
+      <main className="mx-auto w-full max-w-6xl px-6 py-16">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-semibold">Presence Order</h1>
+            <p className="mt-2 text-sm opacity-80">Admin fulfillment view.</p>
+          </div>
+          <div className="flex gap-3">
+            <Link
+              href="/ops/presence"
+              prefetch={false}
+              className="rounded-lg border px-4 py-2 text-sm font-semibold"
+            >
+              Back to list
+            </Link>
+            <Link
+              href="/account"
+              prefetch={false}
+              className="rounded-lg border px-4 py-2 text-sm font-semibold"
+            >
+              Account
+            </Link>
+          </div>
+        </div>
+
+        <div className="mt-10 grid gap-6 md:grid-cols-3">
+          <div className="rounded-xl border p-5 md:col-span-2">
+            <div className="text-sm font-semibold">Onboarding</div>
+            <pre className="mt-4 rounded-xl border p-4 text-xs overflow-auto">
+              {JSON.stringify(order.onboarding ?? {}, null, 2)}
+            </pre>
+          </div>
+
+          <div className="rounded-xl border p-5">
+            <div className="text-sm font-semibold">Order info</div>
+            <div className="mt-4 space-y-2 text-sm">
+              <div>
+                <span className="opacity-70">Customer:</span>{" "}
+                <span className="font-medium">
+                  {customerProfile?.email ?? order.user_id}
+                </span>
+              </div>
+              <div>
+                <span className="opacity-70">Package:</span>{" "}
+                <span className="font-medium">{order.package_key}</span>
+              </div>
+              <div>
+                <span className="opacity-70">Status:</span>{" "}
+                <span className="font-medium">{order.status}</span>
+              </div>
+              <div>
+                <span className="opacity-70">Created:</span>{" "}
+                {new Date(order.created_at).toLocaleString()}
+              </div>
+            </div>
+
+            <div className="mt-6">
+              <PresenceStatusButtons
+                orderId={order.id}
+                currentStatus={order.status}
+              />
+            </div>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
+  // -------------------------
+  // LIST VIEW: /ops/presence
+  // -------------------------
   const ordersRes = await admin
     .from("presence_orders")
     .select("id,user_id,package_key,status,created_at,updated_at")
     .order("created_at", { ascending: false })
     .limit(200);
 
-  const orders = (ordersRes.data as PresenceOrderListRow[] | null) ?? [];
-  const ordersErr = ordersRes.error;
+  const orders =
+    (ordersRes.data as Array<Omit<PresenceOrderRow, "onboarding">> | null) ??
+    [];
 
-  if (ordersErr) {
+  if (ordersRes.error) {
     return (
       <main className="mx-auto w-full max-w-6xl px-6 py-16">
         <h1 className="text-2xl font-semibold">Presence Ops</h1>
         <p className="mt-4 text-sm opacity-80">Failed to load orders.</p>
         <pre className="mt-4 rounded-xl border p-4 text-xs overflow-auto">
-          {ordersErr.message}
+          {ordersRes.error.message}
         </pre>
       </main>
     );
@@ -130,9 +290,9 @@ export default async function OpsPresenceListPage() {
 
   const profiles = (profilesRes.data as ProfileRow[] | null) ?? [];
   const emailByUserId = new Map<string, string>();
-  profiles.forEach((p) => {
+  for (const p of profiles) {
     if (p.email) emailByUserId.set(p.user_id, p.email);
-  });
+  }
 
   return (
     <main className="mx-auto w-full max-w-6xl px-6 py-16">
@@ -165,53 +325,25 @@ export default async function OpsPresenceListPage() {
           </thead>
 
           <tbody>
-            {orders.map((o) => {
-              // Deterministic safe guards:
-              // - If id isn't a UUID, do NOT render a Link that can become "/undefined"
-              const idIsValid = typeof o.id === "string" && isUuid(o.id);
-
-              // Stable key: use id if present, otherwise fallback to a deterministic composite.
-              // (No Math.random; no impure calls.)
-              const rowKey = idIsValid
-                ? o.id
-                : `${o.user_id}:${o.created_at}:${o.package_key}`;
-
-              return (
-                <tr key={rowKey} className="border-b last:border-b-0">
-                  <td className="p-3 opacity-80 whitespace-nowrap">
-                    {new Date(o.created_at).toLocaleString()}
-                  </td>
-                  <td className="p-3 font-medium">
-                    {emailByUserId.get(o.user_id) ?? o.user_id}
-                  </td>
-                  <td className="p-3">{o.package_key}</td>
-                  <td className="p-3">
-                    <span className="rounded-full border px-2 py-1 text-xs">
-                      {o.status}
-                    </span>
-                  </td>
-                  <td className="p-3">
-                    <div className="space-y-1">
-                      {idIsValid ? (
-                        <OpenOrderButton id={o.id} />
-                      ) : (
-                        <span className="text-xs opacity-70">
-                          BAD_ID:{" "}
-                          <span className="font-mono">
-                            {toDebugString(o.id)}
-                          </span>
-                        </span>
-                      )}
-
-                      <div className="text-[11px] opacity-60">
-                        raw id:{" "}
-                        <span className="font-mono">{toDebugString(o.id)}</span>
-                      </div>
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
+            {orders.map((o) => (
+              <tr key={o.id} className="border-b last:border-b-0">
+                <td className="p-3 opacity-80 whitespace-nowrap">
+                  {new Date(o.created_at).toLocaleString()}
+                </td>
+                <td className="p-3 font-medium">
+                  {emailByUserId.get(o.user_id) ?? o.user_id}
+                </td>
+                <td className="p-3">{o.package_key}</td>
+                <td className="p-3">
+                  <span className="rounded-full border px-2 py-1 text-xs">
+                    {o.status}
+                  </span>
+                </td>
+                <td className="p-3">
+                  <OpenOrderButton id={o.id} />
+                </td>
+              </tr>
+            ))}
 
             {orders.length === 0 ? (
               <tr>
