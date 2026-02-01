@@ -1,25 +1,15 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 export default function OpenOrderButton({ id }: { id: string }) {
-  const router = useRouter();
-
   return (
-    <button
-      type="button"
+    <Link
+      href={`/ops/presence/${encodeURIComponent(id)}`}
       className="underline underline-offset-4"
-      onClick={(e) => {
-        // prevent any parent click handlers / overlays from hijacking the click
-        e.preventDefault();
-        e.stopPropagation();
-
-        const href = `/ops/presence?id=${encodeURIComponent(id)}`;
-        router.push(href);
-        router.refresh(); // force server component re-run so detail branch renders
-      }}
+      prefetch={false}
     >
       Open
-    </button>
+    </Link>
   );
 }

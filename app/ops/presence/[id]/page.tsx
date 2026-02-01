@@ -3,6 +3,10 @@ import { supabaseServer } from "@/src/lib/supabase/server";
 import { getSupabaseAdmin } from "@/src/lib/supabase-admin";
 import PresenceStatusButtons from "../_components/PresenceStatusButtons";
 
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 type UserRole = "user" | "b2b_pending" | "b2b_approved" | "admin";
 
 type ProfileRow = {
@@ -11,7 +15,7 @@ type ProfileRow = {
   role: UserRole;
 };
 
-type PresenceOrderRow = {
+type PresenceOrderDetailRow = {
   id: string;
   user_id: string;
   package_key: string;
@@ -34,48 +38,9 @@ function isUuid(v: string): boolean {
 export default async function OpsPresenceDetailPage({
   params,
 }: {
-  params: { id?: string };
+  params: { id: string };
 }) {
-  const rawId = params?.id;
-
-  // Hard guard for params to avoid "undefined" being sent to Postgres
-  if (!rawId || typeof rawId !== "string") {
-    return (
-      <main className="mx-auto w-full max-w-4xl px-6 py-16">
-        <h1 className="text-2xl font-semibold">Presence Ops</h1>
-        <p className="mt-2 text-sm opacity-80">Invalid route parameter.</p>
-        <pre className="mt-4 rounded-xl border p-4 text-xs overflow-auto">
-          params.id = {String(rawId)}
-        </pre>
-        <Link
-          href="/ops/presence"
-          className="mt-6 inline-block underline underline-offset-4"
-        >
-          Back to list
-        </Link>
-      </main>
-    );
-  }
-
-  if (!isUuid(rawId)) {
-    return (
-      <main className="mx-auto w-full max-w-4xl px-6 py-16">
-        <h1 className="text-2xl font-semibold">Presence Ops</h1>
-        <p className="mt-2 text-sm opacity-80">
-          Invalid order id (not a UUID).
-        </p>
-        <pre className="mt-4 rounded-xl border p-4 text-xs overflow-auto">
-          id = {rawId}
-        </pre>
-        <Link
-          href="/ops/presence"
-          className="mt-6 inline-block underline underline-offset-4"
-        >
-          Back to list
-        </Link>
-      </main>
-    );
-  }
+  const id = params.id;
 
   const supabase = await supabaseServer();
   const { data: u } = await supabase.auth.getUser();
@@ -83,11 +48,11 @@ export default async function OpsPresenceDetailPage({
 
   if (!user) {
     return (
-      <main className="mx-auto w-full max-w-4xl px-6 py-16">
+      <main className="mx-auto w-full max-w-5xl px-6 py-16">
         <h1 className="text-2xl font-semibold">Presence Ops</h1>
         <p className="mt-2 text-sm opacity-80">Please sign in.</p>
         <Link
-          href={`/login?next=${encodeURIComponent(`/ops/presence/${rawId}`)}`}
+          href="/login?next=/ops/presence"
           className="mt-6 inline-block rounded-lg px-5 py-3 text-sm font-semibold"
           style={{ background: "var(--mx-cta)", color: "#fff" }}
         >
@@ -97,21 +62,46 @@ export default async function OpsPresenceDetailPage({
     );
   }
 
-  // Admin gate (service role read)
-  const { data: meProfile } = await getSupabaseAdmin()
+  if (!isUuid(id)) {
+    return (
+      <main className="mx-auto w-full max-w-5xl px-6 py-16">
+        <h1 className="text-2xl font-semibold">Presence Ops</h1>
+        <p className="mt-2 text-sm opacity-80">
+          Invalid order id (not a UUID).
+        </p>
+        <pre className="mt-4 rounded-xl border p-4 text-xs overflow-auto">
+          id = {id}
+        </pre>
+        <Link
+          href="/ops/presence"
+          prefetch={false}
+          className="mt-6 inline-block underline underline-offset-4"
+        >
+          Back to list
+        </Link>
+      </main>
+    );
+  }
+
+  const admin = getSupabaseAdmin();
+
+  const meRes = await admin
     .from("profiles")
     .select("user_id,email,role")
     .eq("user_id", user.id)
-    .maybeSingle()
-    .returns<ProfileRow | null>();
+    .maybeSingle();
 
-  if (!meProfile || !isAdmin(meProfile.role)) {
+  const meProfile = meRes.data as ProfileRow | null;
+  const meErr = meRes.error;
+
+  if (meErr || !meProfile || !isAdmin(meProfile.role)) {
     return (
-      <main className="mx-auto w-full max-w-4xl px-6 py-16">
+      <main className="mx-auto w-full max-w-5xl px-6 py-16">
         <h1 className="text-2xl font-semibold">Presence Ops</h1>
         <p className="mt-2 text-sm opacity-80">Access denied.</p>
         <Link
           href="/account"
+          prefetch={false}
           className="mt-6 inline-block underline underline-offset-4"
         >
           Go to Account
@@ -120,23 +110,26 @@ export default async function OpsPresenceDetailPage({
     );
   }
 
-  const { data: order, error } = await getSupabaseAdmin()
+  const orderRes = await admin
     .from("presence_orders")
     .select("id,user_id,package_key,status,onboarding,created_at,updated_at")
-    .eq("id", rawId)
-    .maybeSingle()
-    .returns<PresenceOrderRow | null>();
+    .eq("id", id)
+    .maybeSingle();
 
-  if (error) {
+  const order = orderRes.data as PresenceOrderDetailRow | null;
+  const orderErr = orderRes.error;
+
+  if (orderErr) {
     return (
-      <main className="mx-auto w-full max-w-4xl px-6 py-16">
+      <main className="mx-auto w-full max-w-5xl px-6 py-16">
         <h1 className="text-2xl font-semibold">Presence Ops</h1>
         <p className="mt-2 text-sm opacity-80">Failed to load order.</p>
         <pre className="mt-4 rounded-xl border p-4 text-xs overflow-auto">
-          {error.message}
+          {orderErr.message}
         </pre>
         <Link
           href="/ops/presence"
+          prefetch={false}
           className="mt-6 inline-block underline underline-offset-4"
         >
           Back to list
@@ -147,11 +140,12 @@ export default async function OpsPresenceDetailPage({
 
   if (!order) {
     return (
-      <main className="mx-auto w-full max-w-4xl px-6 py-16">
+      <main className="mx-auto w-full max-w-5xl px-6 py-16">
         <h1 className="text-2xl font-semibold">Presence Ops</h1>
         <p className="mt-2 text-sm opacity-80">Order not found.</p>
         <Link
           href="/ops/presence"
+          prefetch={false}
           className="mt-6 inline-block underline underline-offset-4"
         >
           Back to list
@@ -160,12 +154,13 @@ export default async function OpsPresenceDetailPage({
     );
   }
 
-  const { data: customerProfile } = await getSupabaseAdmin()
+  const customerRes = await admin
     .from("profiles")
     .select("user_id,email,role")
     .eq("user_id", order.user_id)
-    .maybeSingle()
-    .returns<ProfileRow | null>();
+    .maybeSingle();
+
+  const customerProfile = customerRes.data as ProfileRow | null;
 
   return (
     <main className="mx-auto w-full max-w-6xl px-6 py-16">
@@ -177,12 +172,14 @@ export default async function OpsPresenceDetailPage({
         <div className="flex gap-3">
           <Link
             href="/ops/presence"
+            prefetch={false}
             className="rounded-lg border px-4 py-2 text-sm font-semibold"
           >
             Back to list
           </Link>
           <Link
             href="/account"
+            prefetch={false}
             className="rounded-lg border px-4 py-2 text-sm font-semibold"
           >
             Account

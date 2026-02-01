@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { supabaseServer } from "@/src/lib/supabase/server";
 import { getSupabaseAdmin } from "@/src/lib/supabase-admin";
-import PresenceStatusButtons from "./_components/PresenceStatusButtons";
 import OpenOrderButton from "./_components/OpenOrderButton";
 
 export const runtime = "nodejs";
@@ -25,38 +24,11 @@ type PresenceOrderListRow = {
   updated_at: string;
 };
 
-type PresenceOrderDetailRow = {
-  id: string;
-  user_id: string;
-  package_key: string;
-  status: string;
-  onboarding: unknown;
-  created_at: string;
-  updated_at: string;
-};
-
 function isAdmin(role: unknown): role is "admin" {
   return role === "admin";
 }
 
-function isUuid(v: string): boolean {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
-    v,
-  );
-}
-
-function normalizeId(v: string | string[] | undefined): string | null {
-  if (typeof v === "string") return v.length ? v : null;
-  if (Array.isArray(v))
-    return typeof v[0] === "string" && v[0].length ? v[0] : null;
-  return null;
-}
-
-export default async function OpsPresencePage({
-  searchParams,
-}: {
-  searchParams?: { id?: string | string[] };
-}) {
+export default async function OpsPresenceListPage() {
   const supabase = await supabaseServer();
   const { data: u } = await supabase.auth.getUser();
   const user = u.user;
@@ -77,10 +49,8 @@ export default async function OpsPresencePage({
     );
   }
 
-  // Create admin client ONCE (lazy init inside getSupabaseAdmin)
   const admin = getSupabaseAdmin();
 
-  // Admin gate
   const meRes = await admin
     .from("profiles")
     .select("user_id,email,role")
@@ -106,160 +76,6 @@ export default async function OpsPresencePage({
     );
   }
 
-  const id = normalizeId(searchParams?.id);
-
-  // KEY POINT:
-  // Force a remount when query id changes, so UI can't "stick" to the list view.
-  const mainKey = id ? `detail:${id}` : "list";
-
-  // -------------------------
-  // DETAIL VIEW
-  // -------------------------
-  if (id) {
-    if (!isUuid(id)) {
-      return (
-        <main key={mainKey} className="mx-auto w-full max-w-5xl px-6 py-16">
-          <h1 className="text-2xl font-semibold">Presence Ops</h1>
-          <p className="mt-2 text-sm opacity-80">
-            Invalid order id (not a UUID).
-          </p>
-          <pre className="mt-4 rounded-xl border p-4 text-xs overflow-auto">
-            id = {id}
-          </pre>
-          <Link
-            href="/ops/presence"
-            prefetch={false}
-            className="mt-6 inline-block underline underline-offset-4"
-          >
-            Back to list
-          </Link>
-        </main>
-      );
-    }
-
-    const orderRes = await admin
-      .from("presence_orders")
-      .select("id,user_id,package_key,status,onboarding,created_at,updated_at")
-      .eq("id", id)
-      .maybeSingle();
-
-    const order = orderRes.data as PresenceOrderDetailRow | null;
-    const orderErr = orderRes.error;
-
-    if (orderErr) {
-      return (
-        <main key={mainKey} className="mx-auto w-full max-w-5xl px-6 py-16">
-          <h1 className="text-2xl font-semibold">Presence Ops</h1>
-          <p className="mt-2 text-sm opacity-80">Failed to load order.</p>
-          <pre className="mt-4 rounded-xl border p-4 text-xs overflow-auto">
-            {orderErr.message}
-          </pre>
-          <Link
-            href="/ops/presence"
-            prefetch={false}
-            className="mt-6 inline-block underline underline-offset-4"
-          >
-            Back to list
-          </Link>
-        </main>
-      );
-    }
-
-    if (!order) {
-      return (
-        <main key={mainKey} className="mx-auto w-full max-w-5xl px-6 py-16">
-          <h1 className="text-2xl font-semibold">Presence Ops</h1>
-          <p className="mt-2 text-sm opacity-80">Order not found.</p>
-          <Link
-            href="/ops/presence"
-            prefetch={false}
-            className="mt-6 inline-block underline underline-offset-4"
-          >
-            Back to list
-          </Link>
-        </main>
-      );
-    }
-
-    const customerRes = await admin
-      .from("profiles")
-      .select("user_id,email,role")
-      .eq("user_id", order.user_id)
-      .maybeSingle();
-
-    const customerProfile = customerRes.data as ProfileRow | null;
-
-    return (
-      <main key={mainKey} className="mx-auto w-full max-w-6xl px-6 py-16">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-semibold">Presence Order</h1>
-            <p className="mt-2 text-sm opacity-80">Admin fulfillment view.</p>
-          </div>
-          <div className="flex gap-3">
-            <Link
-              href="/ops/presence"
-              prefetch={false}
-              className="rounded-lg border px-4 py-2 text-sm font-semibold"
-            >
-              Back to list
-            </Link>
-            <Link
-              href="/account"
-              prefetch={false}
-              className="rounded-lg border px-4 py-2 text-sm font-semibold"
-            >
-              Account
-            </Link>
-          </div>
-        </div>
-
-        <div className="mt-10 grid gap-6 md:grid-cols-3">
-          <div className="rounded-xl border p-5 md:col-span-2">
-            <div className="text-sm font-semibold">Onboarding</div>
-            <pre className="mt-4 rounded-xl border p-4 text-xs overflow-auto">
-              {JSON.stringify(order.onboarding ?? {}, null, 2)}
-            </pre>
-          </div>
-
-          <div className="rounded-xl border p-5">
-            <div className="text-sm font-semibold">Order info</div>
-            <div className="mt-4 space-y-2 text-sm">
-              <div>
-                <span className="opacity-70">Customer:</span>{" "}
-                <span className="font-medium">
-                  {customerProfile?.email ?? order.user_id}
-                </span>
-              </div>
-              <div>
-                <span className="opacity-70">Package:</span>{" "}
-                <span className="font-medium">{order.package_key}</span>
-              </div>
-              <div>
-                <span className="opacity-70">Status:</span>{" "}
-                <span className="font-medium">{order.status}</span>
-              </div>
-              <div>
-                <span className="opacity-70">Created:</span>{" "}
-                {new Date(order.created_at).toLocaleString()}
-              </div>
-            </div>
-
-            <div className="mt-6">
-              <PresenceStatusButtons
-                orderId={order.id}
-                currentStatus={order.status}
-              />
-            </div>
-          </div>
-        </div>
-      </main>
-    );
-  }
-
-  // -------------------------
-  // LIST VIEW
-  // -------------------------
   const ordersRes = await admin
     .from("presence_orders")
     .select("id,user_id,package_key,status,created_at,updated_at")
@@ -271,7 +87,7 @@ export default async function OpsPresencePage({
 
   if (ordersErr) {
     return (
-      <main key={mainKey} className="mx-auto w-full max-w-6xl px-6 py-16">
+      <main className="mx-auto w-full max-w-6xl px-6 py-16">
         <h1 className="text-2xl font-semibold">Presence Ops</h1>
         <p className="mt-4 text-sm opacity-80">Failed to load orders.</p>
         <pre className="mt-4 rounded-xl border p-4 text-xs overflow-auto">
@@ -298,7 +114,7 @@ export default async function OpsPresencePage({
   });
 
   return (
-    <main key={mainKey} className="mx-auto w-full max-w-6xl px-6 py-16">
+    <main className="mx-auto w-full max-w-6xl px-6 py-16">
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold">Presence Ops</h1>
@@ -346,6 +162,7 @@ export default async function OpsPresencePage({
                 </td>
               </tr>
             ))}
+
             {(orders ?? []).length === 0 ? (
               <tr>
                 <td className="p-4 opacity-80" colSpan={5}>
