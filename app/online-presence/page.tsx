@@ -6,6 +6,8 @@ import PresenceCheckoutButtons from "../_components/PresenceCheckoutButtons";
 
 type PackageKey = "basic" | "booking" | "seo";
 
+const DOCS_HUB_HREF = "/presence/docs";
+
 const PACKAGE_TO_PRODUCT_KEY: Record<PackageKey, string> = {
   basic: "presence_basic",
   booking: "presence_booking",
@@ -138,7 +140,6 @@ function isEntitlementRow(value: unknown): value is EntitlementRow {
 
   if (typeof productKey !== "string") return false;
   if (typeof status !== "string") return false;
-
   if (!(typeof expiresAt === "string" || expiresAt === null)) return false;
 
   return true;
@@ -168,8 +169,6 @@ function pickPresenceOrders(data: unknown): PresenceOrderRow[] {
 
 function isActiveEntitlement(row: EntitlementRow): boolean {
   if (row.status !== "active") return false;
-
-  // No expiry means it’s considered active.
   if (!row.expires_at) return true;
 
   const expiresAtMs = Date.parse(row.expires_at);
@@ -290,6 +289,14 @@ export default async function OnlinePresencePage() {
                 FAQ
               </a>
 
+              {/* ✅ Docs link added */}
+              <Link
+                href={DOCS_HUB_HREF}
+                className="text-sm mx-muted hover:opacity-90"
+              >
+                Docs
+              </Link>
+
               <a
                 href="#packages"
                 className="rounded-lg px-4 py-2 text-sm font-semibold transition"
@@ -312,6 +319,15 @@ export default async function OnlinePresencePage() {
                 >
                   Signed in{user.email ? `: ${user.email}` : ""}
                 </div>
+
+                {/* ✅ Docs button (visible when signed in too) */}
+                <Link
+                  href={DOCS_HUB_HREF}
+                  className="rounded-lg border px-4 py-2 text-sm font-semibold"
+                >
+                  Docs
+                </Link>
+
                 <Link
                   href="/account"
                   className="rounded-lg border px-4 py-2 text-sm font-semibold"
@@ -326,12 +342,20 @@ export default async function OnlinePresencePage() {
                 </a>
               </div>
             ) : (
-              <Link
-                href="/login?next=/online-presence"
-                className="rounded-lg border px-4 py-2 text-sm font-semibold"
-              >
-                Sign in
-              </Link>
+              <div className="flex items-center gap-2">
+                <Link
+                  href={DOCS_HUB_HREF}
+                  className="rounded-lg border px-4 py-2 text-sm font-semibold"
+                >
+                  Docs
+                </Link>
+                <Link
+                  href="/login?next=/online-presence"
+                  className="rounded-lg border px-4 py-2 text-sm font-semibold"
+                >
+                  Sign in
+                </Link>
+              </div>
             )}
           </div>
         </header>
@@ -380,6 +404,19 @@ export default async function OnlinePresencePage() {
                     Get Online
                   </a>
 
+                  {/* ✅ Docs CTA added */}
+                  <Link
+                    href={DOCS_HUB_HREF}
+                    className="inline-flex items-center justify-center rounded-lg px-5 py-3 text-sm font-semibold transition"
+                    style={{
+                      border: "1px solid rgba(255,255,255,0.14)",
+                      color: "rgba(255,255,255,0.9)",
+                      background: "rgba(30,41,59,0.25)",
+                    }}
+                  >
+                    Read the docs
+                  </Link>
+
                   {user ? (
                     <Link
                       href="/account"
@@ -405,6 +442,12 @@ export default async function OnlinePresencePage() {
                       Sign in
                     </Link>
                   )}
+                </div>
+
+                {/* Optional micro-copy under CTAs */}
+                <div className="mt-3 text-xs mx-muted">
+                  Scope, delivery steps, and boundaries are documented for
+                  clarity.
                 </div>
               </FadeIn>
 
@@ -550,6 +593,16 @@ export default async function OnlinePresencePage() {
                 Fixed scope, fixed pricing, fast delivery. Choose the level of
                 automation and competitiveness you need.
               </p>
+
+              {/* ✅ Small docs link in header area */}
+              <div className="mt-3 text-sm">
+                <Link
+                  href={DOCS_HUB_HREF}
+                  className="underline underline-offset-4 mx-muted hover:opacity-90"
+                >
+                  Read scope & delivery docs
+                </Link>
+              </div>
             </div>
 
             <div className="text-xs mx-muted">
@@ -729,6 +782,16 @@ export default async function OnlinePresencePage() {
                           primaryLabel={pkg.cta}
                         />
                       )}
+
+                      {/* ✅ Tiny docs link under purchase actions */}
+                      <div className="mt-3 text-[11px] mx-muted">
+                        <Link
+                          href={DOCS_HUB_HREF}
+                          className="underline underline-offset-4 hover:opacity-90"
+                        >
+                          View scope & delivery docs
+                        </Link>
+                      </div>
                     </div>
                   </div>
                 </Item>
