@@ -15,6 +15,44 @@ type PresenceOrder = {
   created_at: string;
 };
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isPresenceOrder(value: unknown): value is PresenceOrder {
+  if (!isRecord(value)) return false;
+
+  const id = value.id;
+  const packageKey = value.package_key;
+  const status = value.status;
+  const createdAt = value.created_at;
+
+  if (typeof id !== "string") return false;
+  if (typeof status !== "string") return false;
+  if (typeof createdAt !== "string") return false;
+
+  if (
+    packageKey !== "basic" &&
+    packageKey !== "booking" &&
+    packageKey !== "seo"
+  ) {
+    return false;
+  }
+
+  const onboarding = value.onboarding;
+  if (onboarding !== null && onboarding !== undefined) {
+    if (!isRecord(onboarding)) return false;
+  }
+
+  return true;
+}
+
+function pickLatestPresenceOrder(data: unknown): PresenceOrder | null {
+  if (!Array.isArray(data)) return null;
+  const first = data[0];
+  return isPresenceOrder(first) ? first : null;
+}
+
 export default async function PresencePage() {
   const supabase = await supabaseServer();
   const { data: userRes } = await supabase.auth.getUser();
@@ -36,14 +74,14 @@ export default async function PresencePage() {
     );
   }
 
-  const { data: orders } = await supabase
+  const { data, error } = await supabase
     .from("presence_orders")
     .select("id,package_key,status,onboarding,created_at")
     .order("created_at", { ascending: false })
-    .limit(1)
-    .returns<PresenceOrder[]>();
+    .limit(1);
 
-  const order = orders?.[0] ?? null;
+  // No assumptions: if query errors or shape mismatch, treat as no order.
+  const order = error ? null : pickLatestPresenceOrder(data);
 
   return (
     <main className="mx-auto w-full max-w-3xl px-6 py-16">
@@ -57,7 +95,7 @@ export default async function PresencePage() {
         </div>
         <Link
           href="/account"
-          className="rounded-lg px-4 py-2 text-sm font-semibold border"
+          className="rounded-lg border px-4 py-2 text-sm font-semibold"
         >
           Account
         </Link>
@@ -65,7 +103,7 @@ export default async function PresencePage() {
 
       {!order ? (
         <div className="mt-10 rounded-xl border p-6">
-          <div className="text-sm font-semibold">No paid order found</div>
+          <div className="text-sm font-semibold">No order found</div>
           <p className="mt-2 text-sm opacity-80">
             Purchase a package first, then come back here to submit onboarding.
           </p>
@@ -86,7 +124,7 @@ export default async function PresencePage() {
               <span className="font-semibold">{order.package_key}</span> •
               Status: <span className="font-semibold">{order.status}</span>
             </div>
-            <div className="mt-2 text-xs opacity-70 font-mono">{order.id}</div>
+            <div className="mt-2 font-mono text-xs opacity-70">{order.id}</div>
           </div>
 
           <PresenceOnboardingForm
