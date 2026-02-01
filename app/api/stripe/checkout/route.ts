@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import { stripe } from "@/src/lib/stripe";
-import { supabaseAdmin } from "@/src/lib/supabase-admin";
+import { getSupabaseAdmin } from "@/src/lib/supabase-admin";
 import { STRIPE_PRICES } from "@/src/config/stripe-prices";
 
 type CheckoutBody =
@@ -21,13 +21,13 @@ async function userFromBearer(req: Request) {
   const token = auth.startsWith("Bearer ") ? auth.slice(7) : null;
   if (!token) return null;
 
-  const { data, error } = await supabaseAdmin.auth.getUser(token);
+  const { data, error } = await getSupabaseAdmin().auth.getUser(token);
   if (error || !data?.user) return null;
   return data.user;
 }
 
 async function getOrCreateStripeCustomer(userId: string, email?: string | null) {
-  const { data, error } = await supabaseAdmin
+  const { data, error } = await getSupabaseAdmin()
     .from("stripe_customers")
     .select("stripe_customer_id")
     .eq("user_id", userId)
@@ -41,7 +41,7 @@ async function getOrCreateStripeCustomer(userId: string, email?: string | null) 
     metadata: { supabase_user_id: userId },
   });
 
-  const { error: insErr } = await supabaseAdmin.from("stripe_customers").insert({
+  const { error: insErr } = await getSupabaseAdmin().from("stripe_customers").insert({
     user_id: userId,
     stripe_customer_id: customer.id,
   });
