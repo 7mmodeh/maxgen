@@ -73,6 +73,63 @@ function pickFirstId(v: unknown): string | null {
   return null;
 }
 
+function toTitle(s: string): string {
+  return s
+    .replace(/_/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/^\w/, (c) => c.toUpperCase());
+}
+
+function statusBadgeClasses(status: string): string {
+  // Keep it simple and deterministic without assumptions about status values beyond your check constraint.
+  // (No new deps; just utility classes.)
+  const base =
+    "inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold";
+  if (status === "paid") return `${base} border-amber-300 bg-amber-50`;
+  if (status === "onboarding_received")
+    return `${base} border-sky-300 bg-sky-50`;
+  if (status === "in_progress") return `${base} border-blue-300 bg-blue-50`;
+  if (status === "delivered") return `${base} border-emerald-300 bg-emerald-50`;
+  if (status === "canceled") return `${base} border-rose-300 bg-rose-50`;
+  return `${base} border-gray-300 bg-gray-50`;
+}
+
+function toOnboardingEntries(
+  onboarding: unknown,
+): Array<{ key: string; value: string }> {
+  if (onboarding === null || onboarding === undefined) return [];
+
+  if (typeof onboarding === "object" && !Array.isArray(onboarding)) {
+    const rec = onboarding as Record<string, unknown>;
+    const keys = Object.keys(rec).sort((a, b) => a.localeCompare(b));
+    return keys.map((k) => {
+      const v = rec[k];
+      if (v === null || v === undefined) return { key: k, value: "—" };
+      if (typeof v === "string") return { key: k, value: v.trim() || "—" };
+      if (
+        typeof v === "number" ||
+        typeof v === "boolean" ||
+        typeof v === "bigint"
+      )
+        return { key: k, value: String(v) };
+
+      try {
+        return { key: k, value: JSON.stringify(v) };
+      } catch {
+        return { key: k, value: "[unserializable]" };
+      }
+    });
+  }
+
+  // Non-object onboarding (unexpected but possible)
+  try {
+    return [{ key: "value", value: JSON.stringify(onboarding) }];
+  } catch {
+    return [{ key: "value", value: "[unserializable]" }];
+  }
+}
+
 export default async function OpsPresencePage(props: {
   searchParams?: unknown;
 }) {
@@ -83,8 +140,11 @@ export default async function OpsPresencePage(props: {
   if (!user) {
     return (
       <main className="mx-auto w-full max-w-5xl px-6 py-16">
-        <h1 className="text-2xl font-semibold">Presence Ops</h1>
-        <p className="mt-2 text-sm opacity-80">Please sign in.</p>
+        <header className="space-y-2">
+          <h1 className="text-2xl font-semibold">Presence Ops</h1>
+          <p className="text-sm opacity-80">Please sign in.</p>
+        </header>
+
         <Link
           href="/login?next=/ops/presence"
           className="mt-6 inline-block rounded-lg px-5 py-3 text-sm font-semibold"
@@ -110,8 +170,11 @@ export default async function OpsPresencePage(props: {
   if (meRes.error || !meProfile || !isAdmin(meProfile.role)) {
     return (
       <main className="mx-auto w-full max-w-5xl px-6 py-16">
-        <h1 className="text-2xl font-semibold">Presence Ops</h1>
-        <p className="mt-2 text-sm opacity-80">Access denied.</p>
+        <header className="space-y-2">
+          <h1 className="text-2xl font-semibold">Presence Ops</h1>
+          <p className="text-sm opacity-80">Access denied.</p>
+        </header>
+
         <Link
           href="/account"
           prefetch={false}
@@ -135,20 +198,23 @@ export default async function OpsPresencePage(props: {
     if (!isUuid(decodedId)) {
       return (
         <main className="mx-auto w-full max-w-5xl px-6 py-16">
-          <h1 className="text-2xl font-semibold">Presence Ops</h1>
-          <p className="mt-2 text-sm opacity-80">
-            Invalid order id (not a UUID).
-          </p>
-          <div className="mt-4 rounded-xl border p-4 text-xs overflow-auto">
+          <header className="space-y-2">
+            <div className="text-xs opacity-60">Ops / Presence / Order</div>
+            <h1 className="text-2xl font-semibold">Presence Ops</h1>
+            <p className="text-sm opacity-80">Invalid order id (not a UUID).</p>
+          </header>
+
+          <div className="mt-6 rounded-xl border p-4 text-xs overflow-auto space-y-2">
             <div>
               <span className="opacity-70">raw:</span>{" "}
               <span className="font-mono">{rawId ?? "null"}</span>
             </div>
-            <div className="mt-2">
+            <div>
               <span className="opacity-70">decoded:</span>{" "}
               <span className="font-mono">{decodedId}</span>
             </div>
           </div>
+
           <Link
             href="/ops/presence"
             prefetch={false}
@@ -171,11 +237,16 @@ export default async function OpsPresencePage(props: {
     if (orderRes.error) {
       return (
         <main className="mx-auto w-full max-w-5xl px-6 py-16">
-          <h1 className="text-2xl font-semibold">Presence Ops</h1>
-          <p className="mt-2 text-sm opacity-80">Failed to load order.</p>
-          <pre className="mt-4 rounded-xl border p-4 text-xs overflow-auto">
+          <header className="space-y-2">
+            <div className="text-xs opacity-60">Ops / Presence / Order</div>
+            <h1 className="text-2xl font-semibold">Presence Ops</h1>
+            <p className="text-sm opacity-80">Failed to load order.</p>
+          </header>
+
+          <pre className="mt-6 rounded-xl border p-4 text-xs overflow-auto">
             {orderRes.error.message}
           </pre>
+
           <Link
             href="/ops/presence"
             prefetch={false}
@@ -190,8 +261,12 @@ export default async function OpsPresencePage(props: {
     if (!order) {
       return (
         <main className="mx-auto w-full max-w-5xl px-6 py-16">
-          <h1 className="text-2xl font-semibold">Presence Ops</h1>
-          <p className="mt-2 text-sm opacity-80">Order not found.</p>
+          <header className="space-y-2">
+            <div className="text-xs opacity-60">Ops / Presence / Order</div>
+            <h1 className="text-2xl font-semibold">Presence Ops</h1>
+            <p className="text-sm opacity-80">Order not found.</p>
+          </header>
+
           <Link
             href="/ops/presence"
             prefetch={false}
@@ -211,13 +286,22 @@ export default async function OpsPresencePage(props: {
 
     const customerProfile = customerRes.data as ProfileRow | null;
 
+    const onboardingEntries = toOnboardingEntries(order.onboarding);
+
     return (
       <main className="mx-auto w-full max-w-6xl px-6 py-16">
         <div className="flex items-start justify-between gap-4">
-          <div>
+          <div className="space-y-2">
+            <div className="text-xs opacity-60">Ops / Presence / Order</div>
             <h1 className="text-2xl font-semibold">Presence Order</h1>
-            <p className="mt-2 text-sm opacity-80">Admin fulfillment view.</p>
+            <div className="flex flex-wrap items-center gap-3 text-sm">
+              <span className="opacity-80">Admin fulfillment view</span>
+              <span className={statusBadgeClasses(order.status)}>
+                {toTitle(order.status)}
+              </span>
+            </div>
           </div>
+
           <div className="flex gap-3">
             <Link
               href="/ops/presence"
@@ -236,44 +320,91 @@ export default async function OpsPresencePage(props: {
           </div>
         </div>
 
-        <div className="mt-10 grid gap-6 md:grid-cols-3">
-          <div className="rounded-xl border p-5 md:col-span-2">
-            <div className="text-sm font-semibold">Onboarding</div>
-            <pre className="mt-4 rounded-xl border p-4 text-xs overflow-auto">
-              {JSON.stringify(order.onboarding ?? {}, null, 2)}
-            </pre>
-          </div>
-
-          <div className="rounded-xl border p-5">
-            <div className="text-sm font-semibold">Order info</div>
-            <div className="mt-4 space-y-2 text-sm">
-              <div>
-                <span className="opacity-70">Customer:</span>{" "}
-                <span className="font-medium">
-                  {customerProfile?.email ?? order.user_id}
-                </span>
-              </div>
-              <div>
-                <span className="opacity-70">Package:</span>{" "}
-                <span className="font-medium">{order.package_key}</span>
-              </div>
-              <div>
-                <span className="opacity-70">Status:</span>{" "}
-                <span className="font-medium">{order.status}</span>
-              </div>
-              <div>
-                <span className="opacity-70">Created:</span>{" "}
-                {new Date(order.created_at).toLocaleString()}
-              </div>
+        <div className="mt-10 grid gap-6 lg:grid-cols-3">
+          {/* Onboarding */}
+          <section className="rounded-xl border p-6 lg:col-span-2">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-semibold">Onboarding details</h2>
+              <span className="text-xs opacity-60 font-mono">{order.id}</span>
             </div>
 
-            <div className="mt-6">
+            {onboardingEntries.length > 0 ? (
+              <dl className="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+                {onboardingEntries.map(({ key, value }) => (
+                  <div key={key} className="rounded-lg border p-4">
+                    <dt className="text-xs opacity-70">{toTitle(key)}</dt>
+                    <dd className="mt-1 font-medium break-words">
+                      {value || "—"}
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+            ) : (
+              <div className="mt-5 rounded-lg border p-4 text-sm opacity-80">
+                No onboarding data yet.
+              </div>
+            )}
+
+            <details className="mt-5 rounded-lg border p-4">
+              <summary className="cursor-pointer text-sm font-semibold">
+                Raw onboarding JSON
+              </summary>
+              <pre className="mt-3 text-xs overflow-auto">
+                {JSON.stringify(order.onboarding ?? {}, null, 2)}
+              </pre>
+            </details>
+          </section>
+
+          {/* Summary + status actions */}
+          <aside className="space-y-6">
+            <section className="rounded-xl border p-6">
+              <h2 className="text-sm font-semibold">Order summary</h2>
+
+              <div className="mt-4 space-y-3 text-sm">
+                <div className="flex items-start justify-between gap-3">
+                  <span className="opacity-70">Customer</span>
+                  <span className="font-medium text-right break-words">
+                    {customerProfile?.email ?? order.user_id}
+                  </span>
+                </div>
+
+                <div className="flex items-start justify-between gap-3">
+                  <span className="opacity-70">Package</span>
+                  <span className="font-medium text-right">
+                    {order.package_key}
+                  </span>
+                </div>
+
+                <div className="flex items-start justify-between gap-3">
+                  <span className="opacity-70">Status</span>
+                  <span className={statusBadgeClasses(order.status)}>
+                    {toTitle(order.status)}
+                  </span>
+                </div>
+
+                <div className="flex items-start justify-between gap-3">
+                  <span className="opacity-70">Created</span>
+                  <span className="font-medium text-right whitespace-nowrap">
+                    {new Date(order.created_at).toLocaleString()}
+                  </span>
+                </div>
+
+                <div className="flex items-start justify-between gap-3">
+                  <span className="opacity-70">Updated</span>
+                  <span className="font-medium text-right whitespace-nowrap">
+                    {new Date(order.updated_at).toLocaleString()}
+                  </span>
+                </div>
+              </div>
+            </section>
+
+            <section className="rounded-xl border p-0 overflow-hidden">
               <PresenceStatusButtons
                 orderId={order.id}
                 currentStatus={order.status}
               />
-            </div>
-          </div>
+            </section>
+          </aside>
         </div>
       </main>
     );
@@ -293,9 +424,13 @@ export default async function OpsPresencePage(props: {
   if (ordersRes.error) {
     return (
       <main className="mx-auto w-full max-w-6xl px-6 py-16">
-        <h1 className="text-2xl font-semibold">Presence Ops</h1>
-        <p className="mt-4 text-sm opacity-80">Failed to load orders.</p>
-        <pre className="mt-4 rounded-xl border p-4 text-xs overflow-auto">
+        <header className="space-y-2">
+          <div className="text-xs opacity-60">Ops / Presence</div>
+          <h1 className="text-2xl font-semibold">Presence Ops</h1>
+          <p className="text-sm opacity-80">Failed to load orders.</p>
+        </header>
+
+        <pre className="mt-6 rounded-xl border p-4 text-xs overflow-auto">
           {ordersRes.error.message}
         </pre>
       </main>
@@ -321,12 +456,14 @@ export default async function OpsPresencePage(props: {
   return (
     <main className="mx-auto w-full max-w-6xl px-6 py-16">
       <div className="flex items-start justify-between gap-4">
-        <div>
+        <div className="space-y-2">
+          <div className="text-xs opacity-60">Ops / Presence</div>
           <h1 className="text-2xl font-semibold">Presence Ops</h1>
-          <p className="mt-2 text-sm opacity-80">
+          <p className="text-sm opacity-80">
             Internal fulfillment queue — paid orders → onboarding → delivery.
           </p>
         </div>
+
         <Link
           href="/account"
           prefetch={false}
@@ -338,7 +475,7 @@ export default async function OpsPresencePage(props: {
 
       <div className="mt-10 overflow-auto rounded-xl border">
         <table className="w-full text-sm">
-          <thead className="border-b">
+          <thead className="border-b bg-black/[0.02]">
             <tr className="text-left">
               <th className="p-3">Created</th>
               <th className="p-3">Customer</th>
@@ -359,8 +496,8 @@ export default async function OpsPresencePage(props: {
                 </td>
                 <td className="p-3">{o.package_key}</td>
                 <td className="p-3">
-                  <span className="rounded-full border px-2 py-1 text-xs">
-                    {o.status}
+                  <span className={statusBadgeClasses(o.status)}>
+                    {toTitle(o.status)}
                   </span>
                 </td>
                 <td className="p-3">
