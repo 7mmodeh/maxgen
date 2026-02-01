@@ -1,5 +1,3 @@
-// app/online-presence/page.tsx
-
 import Image from "next/image";
 import Link from "next/link";
 import { supabaseServer } from "@/src/lib/supabase/server";
@@ -97,7 +95,7 @@ const PACKAGES: Array<{
   },
 ];
 
-const FAQ = [
+const FAQ: Array<{ q: string; a: string }> = [
   {
     q: "Is this an agency service?",
     a: "No. This is a productized, fixed-scope system designed for fast delivery and predictable outcomes. No retainers, no vague marketing promises.",
@@ -127,8 +125,51 @@ type PresenceOrderRow = {
   status: string;
 };
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isEntitlementRow(value: unknown): value is EntitlementRow {
+  if (!isRecord(value)) return false;
+
+  const productKey = value.product_key;
+  const status = value.status;
+  const expiresAt = value.expires_at;
+
+  if (typeof productKey !== "string") return false;
+  if (typeof status !== "string") return false;
+
+  if (!(typeof expiresAt === "string" || expiresAt === null)) return false;
+
+  return true;
+}
+
+function isPresenceOrderRow(value: unknown): value is PresenceOrderRow {
+  if (!isRecord(value)) return false;
+
+  const packageKey = value.package_key;
+  const status = value.status;
+
+  if (typeof packageKey !== "string") return false;
+  if (typeof status !== "string") return false;
+
+  return true;
+}
+
+function pickEntitlements(data: unknown): EntitlementRow[] {
+  if (!Array.isArray(data)) return [];
+  return data.filter(isEntitlementRow);
+}
+
+function pickPresenceOrders(data: unknown): PresenceOrderRow[] {
+  if (!Array.isArray(data)) return [];
+  return data.filter(isPresenceOrderRow);
+}
+
 function isActiveEntitlement(row: EntitlementRow): boolean {
   if (row.status !== "active") return false;
+
+  // No expiry means it’s considered active.
   if (!row.expires_at) return true;
 
   const expiresAtMs = Date.parse(row.expires_at);
@@ -148,7 +189,7 @@ export default async function OnlinePresencePage() {
   const { data: userRes } = await supabase.auth.getUser();
   const user = userRes.user ?? null;
 
-  const [entitlementsRes, ordersRes] = user
+  const [entRes, poRes] = user
     ? await Promise.all([
         supabase
           .from("entitlements")
@@ -161,17 +202,10 @@ export default async function OnlinePresencePage() {
       ])
     : [null, null];
 
-  const entitlements: EntitlementRow[] =
-    entitlementsRes &&
-    !entitlementsRes.error &&
-    Array.isArray(entitlementsRes.data)
-      ? (entitlementsRes.data as EntitlementRow[])
-      : [];
-
-  const presenceOrders: PresenceOrderRow[] =
-    ordersRes && !ordersRes.error && Array.isArray(ordersRes.data)
-      ? (ordersRes.data as PresenceOrderRow[])
-      : [];
+  const entitlements =
+    entRes && !entRes.error ? pickEntitlements(entRes.data) : [];
+  const presenceOrders =
+    poRes && !poRes.error ? pickPresenceOrders(poRes.data) : [];
 
   const entitlementActiveByProductKey = new Set<string>(
     entitlements.filter(isActiveEntitlement).map((e) => e.product_key),

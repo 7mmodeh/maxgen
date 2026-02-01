@@ -1,3 +1,5 @@
+// src/config/stripe-price-map.ts
+
 import { STRIPE_PRICES } from "@/src/config/stripe-prices";
 
 export const runtime = "nodejs";
