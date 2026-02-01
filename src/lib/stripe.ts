@@ -1,3 +1,5 @@
+// src/lib/stripe.ts
+
 import Stripe from "stripe";
 
 const key = process.env.STRIPE_SECRET_KEY;

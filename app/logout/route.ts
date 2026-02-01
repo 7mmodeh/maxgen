@@ -1,3 +1,5 @@
+// app/logout/route.ts
+
 import { NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
@@ -11,6 +13,9 @@ function must(name: string): string {
 export async function GET() {
   const cookieStore = await cookies();
 
+  // Create the response first so we can set cookies on it.
+  const res = NextResponse.redirect(new URL("/login", must("NEXT_PUBLIC_SITE_URL")));
+
   const supabase = createServerClient(
     must("NEXT_PUBLIC_SUPABASE_URL"),
     must("NEXT_PUBLIC_SUPABASE_ANON_KEY"),
@@ -19,13 +24,16 @@ export async function GET() {
         getAll() {
           return cookieStore.getAll();
         },
-        setAll(cs) {
-          cs.forEach(({ name, value, options }) => cookieStore.set(name, value, options));
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value, options }) => {
+            res.cookies.set(name, value, options);
+          });
         },
       },
     }
   );
 
   await supabase.auth.signOut();
-  return NextResponse.redirect(new URL("/login", must("NEXT_PUBLIC_SITE_URL")));
+
+  return res;
 }

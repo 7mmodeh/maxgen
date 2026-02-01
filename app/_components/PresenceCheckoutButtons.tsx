@@ -1,3 +1,5 @@
+// app/_components/PresenceCheckoutButtons.tsx
+
 "use client";
 
 import { useMemo, useState } from "react";

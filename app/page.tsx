@@ -1,3 +1,5 @@
+// app/page.tsx
+
 import Image from "next/image";
 import { FadeIn, Stagger, Item } from "./_components/motion";
 

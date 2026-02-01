@@ -1,3 +1,5 @@
+// app/api/stripe/checkout/route.ts
+
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import { stripe } from "@/src/lib/stripe";

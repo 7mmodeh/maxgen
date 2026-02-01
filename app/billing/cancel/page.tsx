@@ -1,3 +1,5 @@
+// app/billing/cancel/page.tsx
+
 import Link from "next/link";
 
 export default function BillingCancelPage() {

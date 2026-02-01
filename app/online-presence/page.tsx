@@ -1,9 +1,18 @@
+// app/online-presence/page.tsx
+
 import Image from "next/image";
-import { FadeIn, Stagger, Item } from "../_components/motion";
 import Link from "next/link";
+import { supabaseServer } from "@/src/lib/supabase/server";
+import { FadeIn, Stagger, Item } from "../_components/motion";
 import PresenceCheckoutButtons from "../_components/PresenceCheckoutButtons";
 
 type PackageKey = "basic" | "booking" | "seo";
+
+const PACKAGE_TO_PRODUCT_KEY: Record<PackageKey, string> = {
+  basic: "presence_basic",
+  booking: "presence_booking",
+  seo: "presence_seo",
+};
 
 const PACKAGES: Array<{
   key: PackageKey;
@@ -107,7 +116,67 @@ const FAQ = [
   },
 ];
 
-export default function OnlinePresencePage() {
+type EntitlementRow = {
+  product_key: string;
+  status: string;
+  expires_at: string | null;
+};
+
+type PresenceOrderRow = {
+  package_key: string;
+  status: string;
+};
+
+function isActiveEntitlement(row: EntitlementRow): boolean {
+  if (row.status !== "active") return false;
+  if (!row.expires_at) return true;
+
+  const expiresAtMs = Date.parse(row.expires_at);
+  if (Number.isNaN(expiresAtMs)) return false;
+  return expiresAtMs > Date.now();
+}
+
+function hasNonCanceledOrder(
+  orders: PresenceOrderRow[],
+  key: PackageKey,
+): boolean {
+  return orders.some((o) => o.package_key === key && o.status !== "canceled");
+}
+
+export default async function OnlinePresencePage() {
+  const supabase = await supabaseServer();
+  const { data: userRes } = await supabase.auth.getUser();
+  const user = userRes.user ?? null;
+
+  const [entitlementsRes, ordersRes] = user
+    ? await Promise.all([
+        supabase
+          .from("entitlements")
+          .select("product_key,status,expires_at")
+          .eq("user_id", user.id),
+        supabase
+          .from("presence_orders")
+          .select("package_key,status")
+          .eq("user_id", user.id),
+      ])
+    : [null, null];
+
+  const entitlements: EntitlementRow[] =
+    entitlementsRes &&
+    !entitlementsRes.error &&
+    Array.isArray(entitlementsRes.data)
+      ? (entitlementsRes.data as EntitlementRow[])
+      : [];
+
+  const presenceOrders: PresenceOrderRow[] =
+    ordersRes && !ordersRes.error && Array.isArray(ordersRes.data)
+      ? (ordersRes.data as PresenceOrderRow[])
+      : [];
+
+  const entitlementActiveByProductKey = new Set<string>(
+    entitlements.filter(isActiveEntitlement).map((e) => e.product_key),
+  );
+
   return (
     <main style={{ background: "var(--mx-bg)", color: "var(--mx-text)" }}>
       <div className="relative overflow-hidden">
@@ -168,31 +237,69 @@ export default function OnlinePresencePage() {
             </div>
           </Link>
 
-          <nav className="hidden items-center gap-7 md:flex">
-            <a className="text-sm mx-muted hover:opacity-90" href="#packages">
-              Packages
-            </a>
-            <a
-              className="text-sm mx-muted hover:opacity-90"
-              href="#how-it-works"
-            >
-              How it works
-            </a>
-            <a className="text-sm mx-muted hover:opacity-90" href="#scope">
-              Scope
-            </a>
-            <a className="text-sm mx-muted hover:opacity-90" href="#faq">
-              FAQ
-            </a>
+          {/* Session + nav */}
+          <div className="flex items-center gap-3">
+            <nav className="hidden items-center gap-7 md:flex">
+              <a className="text-sm mx-muted hover:opacity-90" href="#packages">
+                Packages
+              </a>
+              <a
+                className="text-sm mx-muted hover:opacity-90"
+                href="#how-it-works"
+              >
+                How it works
+              </a>
+              <a className="text-sm mx-muted hover:opacity-90" href="#scope">
+                Scope
+              </a>
+              <a className="text-sm mx-muted hover:opacity-90" href="#faq">
+                FAQ
+              </a>
 
-            <a
-              href="#packages"
-              className="rounded-lg px-4 py-2 text-sm font-semibold transition"
-              style={{ background: "var(--mx-cta)", color: "#fff" }}
-            >
-              See packages
-            </a>
-          </nav>
+              <a
+                href="#packages"
+                className="rounded-lg px-4 py-2 text-sm font-semibold transition"
+                style={{ background: "var(--mx-cta)", color: "#fff" }}
+              >
+                See packages
+              </a>
+            </nav>
+
+            {user ? (
+              <div className="flex items-center gap-2">
+                <div
+                  className="hidden md:block rounded-full px-3 py-1 text-xs"
+                  style={{
+                    background: "rgba(15,23,42,0.45)",
+                    border: "1px solid rgba(255,255,255,0.10)",
+                    color: "rgba(255,255,255,0.85)",
+                  }}
+                  title={user.email ?? undefined}
+                >
+                  Signed in{user.email ? `: ${user.email}` : ""}
+                </div>
+                <Link
+                  href="/account"
+                  className="rounded-lg border px-4 py-2 text-sm font-semibold"
+                >
+                  Account
+                </Link>
+                <a
+                  href="/logout"
+                  className="rounded-lg border px-4 py-2 text-sm font-semibold"
+                >
+                  Sign out
+                </a>
+              </div>
+            ) : (
+              <Link
+                href="/login?next=/online-presence"
+                className="rounded-lg border px-4 py-2 text-sm font-semibold"
+              >
+                Sign in
+              </Link>
+            )}
+          </div>
         </header>
 
         {/* Hero */}
@@ -239,17 +346,31 @@ export default function OnlinePresencePage() {
                     Get Online
                   </a>
 
-                  <a
-                    href="mailto:info@maxgensys.com?subject=Online%20Presence%20Packages"
-                    className="inline-flex items-center justify-center rounded-lg px-5 py-3 text-sm font-semibold transition"
-                    style={{
-                      border: "1px solid rgba(255,255,255,0.14)",
-                      color: "rgba(255,255,255,0.9)",
-                      background: "rgba(30,41,59,0.25)",
-                    }}
-                  >
-                    Ask a question
-                  </a>
+                  {user ? (
+                    <Link
+                      href="/account"
+                      className="inline-flex items-center justify-center rounded-lg px-5 py-3 text-sm font-semibold transition"
+                      style={{
+                        border: "1px solid rgba(255,255,255,0.14)",
+                        color: "rgba(255,255,255,0.9)",
+                        background: "rgba(30,41,59,0.25)",
+                      }}
+                    >
+                      View account
+                    </Link>
+                  ) : (
+                    <Link
+                      href="/login?next=/online-presence#packages"
+                      className="inline-flex items-center justify-center rounded-lg px-5 py-3 text-sm font-semibold transition"
+                      style={{
+                        border: "1px solid rgba(255,255,255,0.14)",
+                        color: "rgba(255,255,255,0.9)",
+                        background: "rgba(30,41,59,0.25)",
+                      }}
+                    >
+                      Sign in
+                    </Link>
+                  )}
                 </div>
               </FadeIn>
 
@@ -405,100 +526,180 @@ export default function OnlinePresencePage() {
 
         <Stagger>
           <div className="mt-8 grid gap-5 md:grid-cols-3">
-            {PACKAGES.map((pkg) => (
-              <Item key={pkg.key}>
-                <div
-                  className="h-full rounded-2xl p-6 flex flex-col"
-                  style={{
-                    background: "rgba(30,41,59,0.35)",
-                    border: "1px solid rgba(255,255,255,0.08)",
-                  }}
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <div className="text-base font-semibold">{pkg.title}</div>
-                      <div className="mt-1 text-xs mx-muted">
-                        {pkg.subtitle}
-                      </div>
-                    </div>
-                    <div
-                      className="rounded-full px-3 py-1 text-xs"
-                      style={{
-                        background: "rgba(15,23,42,0.45)",
-                        border: "1px solid rgba(255,255,255,0.10)",
-                        color: "rgba(255,255,255,0.9)",
-                      }}
-                    >
-                      {pkg.key.toUpperCase()}
-                    </div>
-                  </div>
+            {PACKAGES.map((pkg) => {
+              const productKey = PACKAGE_TO_PRODUCT_KEY[pkg.key];
+              const entitled = entitlementActiveByProductKey.has(productKey);
+              const hasOrder = hasNonCanceledOrder(presenceOrders, pkg.key);
 
-                  <div className="mt-5">
-                    <div className="text-sm font-semibold">
-                      {pkg.setupPrice}
-                    </div>
-                    {pkg.monthly ? (
-                      <div className="mt-1 text-xs mx-muted">
-                        {pkg.monthly}{" "}
-                        <span style={{ opacity: 0.9 }}>
-                          — {pkg.monthlyNote}
-                        </span>
-                      </div>
-                    ) : null}
-                  </div>
-
+              return (
+                <Item key={pkg.key}>
                   <div
-                    className="mt-5 rounded-xl p-4"
+                    className="h-full rounded-2xl p-6 flex flex-col"
                     style={{
-                      background: "rgba(15,23,42,0.45)",
+                      background: "rgba(30,41,59,0.35)",
                       border: "1px solid rgba(255,255,255,0.08)",
                     }}
                   >
-                    <div className="text-xs mx-muted">Includes</div>
-                    <ul className="mt-3 space-y-2 text-xs leading-relaxed">
-                      {pkg.includes.map((x) => (
-                        <li key={x} className="flex gap-2">
-                          <span
-                            className="mt-1 h-2 w-2 rounded-full"
-                            style={{ background: "var(--mx-cta)" }}
-                          />
-                          <span className="mx-muted" style={{ opacity: 0.95 }}>
-                            {x}
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="text-base font-semibold">
+                          {pkg.title}
+                        </div>
+                        <div className="mt-1 text-xs mx-muted">
+                          {pkg.subtitle}
+                        </div>
+                      </div>
+                      <div
+                        className="rounded-full px-3 py-1 text-xs"
+                        style={{
+                          background: "rgba(15,23,42,0.45)",
+                          border: "1px solid rgba(255,255,255,0.10)",
+                          color: "rgba(255,255,255,0.9)",
+                        }}
+                      >
+                        {pkg.key.toUpperCase()}
+                      </div>
+                    </div>
+
+                    <div className="mt-5">
+                      <div className="text-sm font-semibold">
+                        {pkg.setupPrice}
+                      </div>
+                      {pkg.monthly ? (
+                        <div className="mt-1 text-xs mx-muted">
+                          {pkg.monthly}{" "}
+                          <span style={{ opacity: 0.9 }}>
+                            — {pkg.monthlyNote}
                           </span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
+                        </div>
+                      ) : null}
+                    </div>
 
-                  <div className="mt-4">
-                    <div className="text-xs mx-muted">What this achieves</div>
-                    <ul className="mt-2 space-y-2 text-xs leading-relaxed">
-                      {pkg.achieves.map((x) => (
-                        <li key={x} className="flex gap-2">
-                          <span
-                            className="mt-1 h-2 w-2 rounded-full"
-                            style={{ background: "var(--mx-light-accent)" }}
-                          />
-                          <span className="mx-muted" style={{ opacity: 0.95 }}>
-                            {x}
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
+                    <div
+                      className="mt-5 rounded-xl p-4"
+                      style={{
+                        background: "rgba(15,23,42,0.45)",
+                        border: "1px solid rgba(255,255,255,0.08)",
+                      }}
+                    >
+                      <div className="text-xs mx-muted">Includes</div>
+                      <ul className="mt-3 space-y-2 text-xs leading-relaxed">
+                        {pkg.includes.map((x) => (
+                          <li key={x} className="flex gap-2">
+                            <span
+                              className="mt-1 h-2 w-2 rounded-full"
+                              style={{ background: "var(--mx-cta)" }}
+                            />
+                            <span
+                              className="mx-muted"
+                              style={{ opacity: 0.95 }}
+                            >
+                              {x}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
 
-                  <div className="mt-4 text-xs mx-muted">
-                    <span className="font-semibold text-white">Delivery: </span>
-                    {pkg.delivery}
-                  </div>
+                    <div className="mt-4">
+                      <div className="text-xs mx-muted">What this achieves</div>
+                      <ul className="mt-2 space-y-2 text-xs leading-relaxed">
+                        {pkg.achieves.map((x) => (
+                          <li key={x} className="flex gap-2">
+                            <span
+                              className="mt-1 h-2 w-2 rounded-full"
+                              style={{ background: "var(--mx-light-accent)" }}
+                            />
+                            <span
+                              className="mx-muted"
+                              style={{ opacity: 0.95 }}
+                            >
+                              {x}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
 
-                  <PresenceCheckoutButtons
-                    tier={pkg.key}
-                    primaryLabel={pkg.cta}
-                  />
-                </div>
-              </Item>
-            ))}
+                    <div className="mt-4 text-xs mx-muted">
+                      <span className="font-semibold text-white">
+                        Delivery:{" "}
+                      </span>
+                      {pkg.delivery}
+                    </div>
+
+                    <div className="mt-6">
+                      {!user ? (
+                        <Link
+                          href="/login?next=/online-presence#packages"
+                          className="inline-flex w-full items-center justify-center rounded-lg px-5 py-3 text-sm font-semibold"
+                          style={{
+                            border: "1px solid rgba(255,255,255,0.14)",
+                            color: "rgba(255,255,255,0.9)",
+                            background: "rgba(30,41,59,0.25)",
+                          }}
+                        >
+                          Sign in to purchase
+                        </Link>
+                      ) : entitled ? (
+                        <div className="grid gap-2">
+                          <div
+                            className="inline-flex w-full items-center justify-center rounded-lg px-5 py-3 text-sm font-semibold"
+                            style={{
+                              background: "rgba(34,197,94,0.14)",
+                              border: "1px solid rgba(34,197,94,0.28)",
+                              color: "rgba(255,255,255,0.92)",
+                            }}
+                          >
+                            Purchased
+                          </div>
+                          <Link
+                            href="/account"
+                            className="inline-flex w-full items-center justify-center rounded-lg px-5 py-3 text-sm font-semibold"
+                            style={{
+                              border: "1px solid rgba(255,255,255,0.14)",
+                              color: "rgba(255,255,255,0.9)",
+                              background: "rgba(30,41,59,0.25)",
+                            }}
+                          >
+                            View plans / orders
+                          </Link>
+                        </div>
+                      ) : hasOrder ? (
+                        <div className="grid gap-2">
+                          <Link
+                            href="/presence"
+                            className="inline-flex w-full items-center justify-center rounded-lg px-5 py-3 text-sm font-semibold transition"
+                            style={{
+                              background: "var(--mx-cta)",
+                              color: "#fff",
+                            }}
+                          >
+                            Continue onboarding
+                          </Link>
+                          <Link
+                            href="/account"
+                            className="inline-flex w-full items-center justify-center rounded-lg px-5 py-3 text-sm font-semibold"
+                            style={{
+                              border: "1px solid rgba(255,255,255,0.14)",
+                              color: "rgba(255,255,255,0.9)",
+                              background: "rgba(30,41,59,0.25)",
+                            }}
+                          >
+                            View orders
+                          </Link>
+                        </div>
+                      ) : (
+                        <PresenceCheckoutButtons
+                          tier={pkg.key}
+                          primaryLabel={pkg.cta}
+                        />
+                      )}
+                    </div>
+                  </div>
+                </Item>
+              );
+            })}
           </div>
         </Stagger>
       </section>
@@ -696,8 +897,7 @@ export default function OnlinePresencePage() {
       >
         <div className="mx-auto flex w-full max-w-6xl flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div className="text-xs mx-muted">
-            © {new Date().getFullYear()} Maxgen Systems Limited. All rights
-            reserved.
+            © Maxgen Systems Limited. All rights reserved.
           </div>
 
           <div className="text-xs mx-muted">

@@ -1,3 +1,5 @@
+// app/ops/presence/page.tsx
+
 import Link from "next/link";
 import { supabaseServer } from "@/src/lib/supabase/server";
 import { getSupabaseAdmin } from "@/src/lib/supabase-admin";

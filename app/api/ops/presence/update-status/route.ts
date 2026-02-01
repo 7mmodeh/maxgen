@@ -1,3 +1,5 @@
+// app/api/ops/presence/update-status/route.ts
+
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/src/lib/supabase-admin";
 

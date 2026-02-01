@@ -1,3 +1,5 @@
+// app/billing/success/page.tsx
+
 import Link from "next/link";
 
 export default function BillingSuccessPage({

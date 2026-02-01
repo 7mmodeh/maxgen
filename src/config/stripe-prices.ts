@@ -1,3 +1,5 @@
+// src/config/stripe-prices.ts
+
 /**
  * Stripe Price Map — Maxgen Systems Ltd
  * -----------------------------------

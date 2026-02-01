@@ -1,3 +1,5 @@
+// app/account/page.tsx
+
 import Link from "next/link";
 import { supabaseServer } from "@/src/lib/supabase/server";
 
@@ -15,6 +17,41 @@ type PresenceOrderRow = {
   status: string;
   created_at: string;
 };
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isEntitlementRow(value: unknown): value is EntitlementRow {
+  if (!isRecord(value)) return false;
+  return (
+    typeof value.product_key === "string" &&
+    typeof value.plan === "string" &&
+    typeof value.status === "string" &&
+    (typeof value.expires_at === "string" || value.expires_at === null) &&
+    typeof value.updated_at === "string"
+  );
+}
+
+function isPresenceOrderRow(value: unknown): value is PresenceOrderRow {
+  if (!isRecord(value)) return false;
+  return (
+    typeof value.id === "string" &&
+    typeof value.package_key === "string" &&
+    typeof value.status === "string" &&
+    typeof value.created_at === "string"
+  );
+}
+
+function pickEntitlements(data: unknown): EntitlementRow[] {
+  if (!Array.isArray(data)) return [];
+  return data.filter(isEntitlementRow);
+}
+
+function pickPresenceOrders(data: unknown): PresenceOrderRow[] {
+  if (!Array.isArray(data)) return [];
+  return data.filter(isPresenceOrderRow);
+}
 
 export default async function AccountPage() {
   const supabase = await supabaseServer();
@@ -40,20 +77,21 @@ export default async function AccountPage() {
     );
   }
 
-  const [{ data: entitlements }, { data: presenceOrders }] = await Promise.all([
+  const [entRes, poRes] = await Promise.all([
     supabase
       .from("entitlements")
       .select("product_key,plan,status,expires_at,updated_at")
       .eq("user_id", user.id)
-      .order("updated_at", { ascending: false })
-      .returns<EntitlementRow[]>(),
+      .order("updated_at", { ascending: false }),
     supabase
       .from("presence_orders")
       .select("id,package_key,status,created_at")
       .eq("user_id", user.id)
-      .order("created_at", { ascending: false })
-      .returns<PresenceOrderRow[]>(),
+      .order("created_at", { ascending: false }),
   ]);
+
+  const entitlements = entRes.error ? [] : pickEntitlements(entRes.data);
+  const presenceOrders = poRes.error ? [] : pickPresenceOrders(poRes.data);
 
   return (
     <main className="mx-auto w-full max-w-4xl px-6 py-16">
@@ -68,7 +106,7 @@ export default async function AccountPage() {
 
         <a
           href="/logout"
-          className="rounded-lg px-4 py-2 text-sm font-semibold border"
+          className="rounded-lg border px-4 py-2 text-sm font-semibold"
         >
           Sign out
         </a>
@@ -88,7 +126,7 @@ export default async function AccountPage() {
               </tr>
             </thead>
             <tbody>
-              {(entitlements ?? []).map((e, idx) => (
+              {entitlements.map((e, idx) => (
                 <tr
                   key={`${e.product_key}-${e.plan}-${idx}`}
                   className="border-t"
@@ -102,7 +140,7 @@ export default async function AccountPage() {
                   </td>
                 </tr>
               ))}
-              {(entitlements ?? []).length === 0 ? (
+              {entitlements.length === 0 ? (
                 <tr>
                   <td className="p-3 opacity-70" colSpan={5}>
                     No entitlements yet.
@@ -127,7 +165,7 @@ export default async function AccountPage() {
               </tr>
             </thead>
             <tbody>
-              {(presenceOrders ?? []).map((o) => (
+              {presenceOrders.map((o) => (
                 <tr key={o.id} className="border-t">
                   <td className="p-3 font-mono">{o.id}</td>
                   <td className="p-3">{o.package_key}</td>
@@ -137,7 +175,7 @@ export default async function AccountPage() {
                   </td>
                 </tr>
               ))}
-              {(presenceOrders ?? []).length === 0 ? (
+              {presenceOrders.length === 0 ? (
                 <tr>
                   <td className="p-3 opacity-70" colSpan={4}>
                     No presence orders yet.
