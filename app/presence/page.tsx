@@ -65,13 +65,23 @@ export default async function PresencePage() {
       <main className="mx-auto w-full max-w-2xl px-6 py-16">
         <h1 className="text-2xl font-semibold">Online Presence</h1>
         <p className="mt-2 text-sm opacity-80">Please sign in to continue.</p>
-        <Link
-          href="/login?next=/presence"
-          className="mt-6 inline-block rounded-lg px-5 py-3 text-sm font-semibold"
-          style={{ background: "var(--mx-cta)", color: "#fff" }}
-        >
-          Sign in
-        </Link>
+
+        <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+          <Link
+            href="/login?next=/presence"
+            className="inline-block rounded-lg px-5 py-3 text-sm font-semibold"
+            style={{ background: "var(--mx-cta)", color: "#fff" }}
+          >
+            Sign in
+          </Link>
+
+          <Link
+            href="/presence/docs"
+            className="inline-block rounded-lg border px-5 py-3 text-sm font-semibold"
+          >
+            Read the docs
+          </Link>
+        </div>
       </main>
     );
   }
@@ -95,27 +105,78 @@ export default async function PresencePage() {
             window.
           </p>
         </div>
-        <Link
-          href="/account"
-          className="rounded-lg border px-4 py-2 text-sm font-semibold"
-        >
-          Account
-        </Link>
+
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <Link
+            href="/presence/docs"
+            className="rounded-lg border px-4 py-2 text-sm font-semibold"
+          >
+            Read the docs
+          </Link>
+
+          <Link
+            href="/account"
+            className="rounded-lg border px-4 py-2 text-sm font-semibold"
+          >
+            Account
+          </Link>
+        </div>
       </div>
 
       {!order ? (
-        <div className="mt-10 rounded-xl border p-6">
-          <div className="text-sm font-semibold">No order found</div>
-          <p className="mt-2 text-sm opacity-80">
-            Purchase a package first, then come back here to submit onboarding.
-          </p>
-          <Link
-            href="/online-presence#packages"
-            className="mt-4 inline-block rounded-lg px-5 py-3 text-sm font-semibold"
-            style={{ background: "var(--mx-cta)", color: "#fff" }}
-          >
-            View packages
-          </Link>
+        <div className="mt-10 space-y-4">
+          <div className="rounded-xl border p-6">
+            <div className="text-sm font-semibold">No order found</div>
+            <p className="mt-2 text-sm opacity-80">
+              Purchase a package first, then come back here to submit
+              onboarding.
+            </p>
+
+            <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+              <Link
+                href="/online-presence#packages"
+                className="inline-block rounded-lg px-5 py-3 text-sm font-semibold"
+                style={{ background: "var(--mx-cta)", color: "#fff" }}
+              >
+                View packages
+              </Link>
+
+              <Link
+                href="/presence/docs"
+                className="inline-block rounded-lg border px-5 py-3 text-sm font-semibold"
+              >
+                Read scope & delivery docs
+              </Link>
+            </div>
+          </div>
+
+          <div className="rounded-xl border p-6">
+            <div className="text-sm font-semibold">Before you order</div>
+            <p className="mt-2 text-sm opacity-80">
+              Review scope boundaries and delivery steps so expectations are
+              crystal clear.
+            </p>
+            <div className="mt-3 flex flex-wrap gap-4 text-sm">
+              <Link
+                href="/presence/docs/scope"
+                className="underline underline-offset-4"
+              >
+                Scope & boundaries
+              </Link>
+              <Link
+                href="/presence/docs/process"
+                className="underline underline-offset-4"
+              >
+                Onboarding & delivery
+              </Link>
+              <Link
+                href="/presence/docs/downloads"
+                className="underline underline-offset-4"
+              >
+                Download PDFs
+              </Link>
+            </div>
+          </div>
         </div>
       ) : (
         <div className="mt-10 space-y-6">
@@ -127,6 +188,36 @@ export default async function PresencePage() {
               Status: <span className="font-semibold">{order.status}</span>
             </div>
             <div className="mt-2 font-mono text-xs opacity-70">{order.id}</div>
+          </div>
+
+          <div className="rounded-xl border p-6">
+            <div className="text-sm font-semibold">
+              Need clarity before submitting?
+            </div>
+            <p className="mt-2 text-sm opacity-80">
+              Review scope and delivery expectations. This helps avoid rework
+              and delays.
+            </p>
+            <div className="mt-3 flex flex-wrap gap-4 text-sm">
+              <Link
+                href="/presence/docs/scope"
+                className="underline underline-offset-4"
+              >
+                Scope & boundaries
+              </Link>
+              <Link
+                href="/presence/docs/process"
+                className="underline underline-offset-4"
+              >
+                Onboarding & delivery
+              </Link>
+              <Link
+                href="/presence/docs/downloads"
+                className="underline underline-offset-4"
+              >
+                Download PDFs
+              </Link>
+            </div>
           </div>
 
           <PresenceOnboardingForm
