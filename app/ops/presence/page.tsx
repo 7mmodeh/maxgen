@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import { supabaseServer } from "@/src/lib/supabase/server";
 import { getSupabaseAdmin } from "@/src/lib/supabase-admin";
 import PresenceStatusButtons from "./_components/PresenceStatusButtons";
@@ -46,7 +45,7 @@ function isUuid(v: string): boolean {
   );
 }
 
-function normalizeSearchParam(v: string | string[] | undefined): string | null {
+function normalizeId(v: string | string[] | undefined): string | null {
   if (typeof v === "string") return v.length ? v : null;
   if (Array.isArray(v))
     return typeof v[0] === "string" && v[0].length ? v[0] : null;
@@ -78,9 +77,10 @@ export default async function OpsPresencePage({
     );
   }
 
-  // Admin gate (service role read) — only after user session exists
+  // Create admin client ONCE (lazy init inside getSupabaseAdmin)
   const admin = getSupabaseAdmin();
 
+  // Admin gate
   const meRes = await admin
     .from("profiles")
     .select("user_id,email,role")
@@ -90,20 +90,35 @@ export default async function OpsPresencePage({
   const meProfile = meRes.data as ProfileRow | null;
   const meErr = meRes.error;
 
-  // Deterministic: non-admins never see ops UI
   if (meErr || !meProfile || !isAdmin(meProfile.role)) {
-    redirect("/account");
+    return (
+      <main className="mx-auto w-full max-w-5xl px-6 py-16">
+        <h1 className="text-2xl font-semibold">Presence Ops</h1>
+        <p className="mt-2 text-sm opacity-80">Access denied.</p>
+        <Link
+          href="/account"
+          prefetch={false}
+          className="mt-6 inline-block underline underline-offset-4"
+        >
+          Go to Account
+        </Link>
+      </main>
+    );
   }
 
-  const id = normalizeSearchParam(searchParams?.id);
+  const id = normalizeId(searchParams?.id);
+
+  // KEY POINT:
+  // Force a remount when query id changes, so UI can't "stick" to the list view.
+  const mainKey = id ? `detail:${id}` : "list";
 
   // -------------------------
-  // DETAIL VIEW: /ops/presence?id=<uuid>
+  // DETAIL VIEW
   // -------------------------
   if (id) {
     if (!isUuid(id)) {
       return (
-        <main className="mx-auto w-full max-w-5xl px-6 py-16">
+        <main key={mainKey} className="mx-auto w-full max-w-5xl px-6 py-16">
           <h1 className="text-2xl font-semibold">Presence Ops</h1>
           <p className="mt-2 text-sm opacity-80">
             Invalid order id (not a UUID).
@@ -113,6 +128,7 @@ export default async function OpsPresencePage({
           </pre>
           <Link
             href="/ops/presence"
+            prefetch={false}
             className="mt-6 inline-block underline underline-offset-4"
           >
             Back to list
@@ -132,7 +148,7 @@ export default async function OpsPresencePage({
 
     if (orderErr) {
       return (
-        <main className="mx-auto w-full max-w-5xl px-6 py-16">
+        <main key={mainKey} className="mx-auto w-full max-w-5xl px-6 py-16">
           <h1 className="text-2xl font-semibold">Presence Ops</h1>
           <p className="mt-2 text-sm opacity-80">Failed to load order.</p>
           <pre className="mt-4 rounded-xl border p-4 text-xs overflow-auto">
@@ -140,6 +156,7 @@ export default async function OpsPresencePage({
           </pre>
           <Link
             href="/ops/presence"
+            prefetch={false}
             className="mt-6 inline-block underline underline-offset-4"
           >
             Back to list
@@ -150,11 +167,12 @@ export default async function OpsPresencePage({
 
     if (!order) {
       return (
-        <main className="mx-auto w-full max-w-5xl px-6 py-16">
+        <main key={mainKey} className="mx-auto w-full max-w-5xl px-6 py-16">
           <h1 className="text-2xl font-semibold">Presence Ops</h1>
           <p className="mt-2 text-sm opacity-80">Order not found.</p>
           <Link
             href="/ops/presence"
+            prefetch={false}
             className="mt-6 inline-block underline underline-offset-4"
           >
             Back to list
@@ -172,7 +190,7 @@ export default async function OpsPresencePage({
     const customerProfile = customerRes.data as ProfileRow | null;
 
     return (
-      <main className="mx-auto w-full max-w-6xl px-6 py-16">
+      <main key={mainKey} className="mx-auto w-full max-w-6xl px-6 py-16">
         <div className="flex items-start justify-between gap-4">
           <div>
             <h1 className="text-2xl font-semibold">Presence Order</h1>
@@ -181,12 +199,14 @@ export default async function OpsPresencePage({
           <div className="flex gap-3">
             <Link
               href="/ops/presence"
+              prefetch={false}
               className="rounded-lg border px-4 py-2 text-sm font-semibold"
             >
               Back to list
             </Link>
             <Link
               href="/account"
+              prefetch={false}
               className="rounded-lg border px-4 py-2 text-sm font-semibold"
             >
               Account
@@ -238,7 +258,7 @@ export default async function OpsPresencePage({
   }
 
   // -------------------------
-  // LIST VIEW: /ops/presence
+  // LIST VIEW
   // -------------------------
   const ordersRes = await admin
     .from("presence_orders")
@@ -251,7 +271,7 @@ export default async function OpsPresencePage({
 
   if (ordersErr) {
     return (
-      <main className="mx-auto w-full max-w-6xl px-6 py-16">
+      <main key={mainKey} className="mx-auto w-full max-w-6xl px-6 py-16">
         <h1 className="text-2xl font-semibold">Presence Ops</h1>
         <p className="mt-4 text-sm opacity-80">Failed to load orders.</p>
         <pre className="mt-4 rounded-xl border p-4 text-xs overflow-auto">
@@ -278,7 +298,7 @@ export default async function OpsPresencePage({
   });
 
   return (
-    <main className="mx-auto w-full max-w-6xl px-6 py-16">
+    <main key={mainKey} className="mx-auto w-full max-w-6xl px-6 py-16">
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold">Presence Ops</h1>
@@ -288,6 +308,7 @@ export default async function OpsPresencePage({
         </div>
         <Link
           href="/account"
+          prefetch={false}
           className="rounded-lg border px-4 py-2 text-sm font-semibold"
         >
           Account
