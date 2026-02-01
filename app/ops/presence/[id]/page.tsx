@@ -35,13 +35,43 @@ function isUuid(v: string): boolean {
   );
 }
 
+function safeString(v: unknown): string {
+  if (typeof v === "string") return v;
+  if (v === null) return "null";
+  if (v === undefined) return "undefined";
+  if (
+    typeof v === "number" ||
+    typeof v === "boolean" ||
+    typeof v === "bigint"
+  ) {
+    return String(v);
+  }
+  try {
+    return JSON.stringify(v);
+  } catch {
+    return "[unserializable]";
+  }
+}
+
+function tryDecodeURIComponent(v: unknown): string {
+  if (typeof v !== "string") return "undefined";
+  try {
+    return decodeURIComponent(v);
+  } catch {
+    return v;
+  }
+}
+
 export default async function OpsPresenceDetailPage({
   params,
 }: {
-  params: { id: string };
+  params: { id?: string };
 }) {
-  const rawId = params.id;
-  const decodedId = decodeURIComponent(rawId);
+  // Unique fingerprint to prove which file is executing in production
+  const FILE_FINGERPRINT = "OPS_PRESENCE_DETAIL_VERCEL_DEBUG_v2";
+
+  const rawId = params?.id;
+  const decodedId = tryDecodeURIComponent(rawId);
 
   const supabase = await supabaseServer();
   const { data: u } = await supabase.auth.getUser();
@@ -63,7 +93,6 @@ export default async function OpsPresenceDetailPage({
     );
   }
 
-  // Show what we actually received if UUID check fails
   if (!isUuid(decodedId)) {
     return (
       <main className="mx-auto w-full max-w-5xl px-6 py-16">
@@ -72,14 +101,22 @@ export default async function OpsPresenceDetailPage({
           Invalid order id (not a UUID).
         </p>
 
-        <div className="mt-4 rounded-xl border p-4 text-xs overflow-auto">
+        <div className="mt-4 rounded-xl border p-4 text-xs overflow-auto space-y-2">
+          <div className="font-mono opacity-70">{FILE_FINGERPRINT}</div>
+
           <div>
             <span className="opacity-70">params.id (raw):</span>{" "}
-            <span className="font-mono">{rawId}</span>
+            <span className="font-mono">{safeString(rawId)}</span>
           </div>
-          <div className="mt-2">
+
+          <div>
             <span className="opacity-70">decoded:</span>{" "}
-            <span className="font-mono">{decodedId}</span>
+            <span className="font-mono">{safeString(decodedId)}</span>
+          </div>
+
+          <div>
+            <span className="opacity-70">params object:</span>{" "}
+            <span className="font-mono">{safeString(params)}</span>
           </div>
         </div>
 
