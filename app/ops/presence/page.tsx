@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { supabaseServer } from "@/src/lib/supabase/server";
 import { getSupabaseAdmin } from "@/src/lib/supabase-admin";
 import PresenceStatusButtons from "./_components/PresenceStatusButtons";
@@ -45,10 +46,17 @@ function isUuid(v: string): boolean {
   );
 }
 
+function normalizeSearchParam(v: string | string[] | undefined): string | null {
+  if (typeof v === "string") return v.length ? v : null;
+  if (Array.isArray(v))
+    return typeof v[0] === "string" && v[0].length ? v[0] : null;
+  return null;
+}
+
 export default async function OpsPresencePage({
   searchParams,
 }: {
-  searchParams?: { id?: string };
+  searchParams?: { id?: string | string[] };
 }) {
   const supabase = await supabaseServer();
   const { data: u } = await supabase.auth.getUser();
@@ -70,8 +78,10 @@ export default async function OpsPresencePage({
     );
   }
 
-  // Admin gate (service role read)
-  const meRes = await getSupabaseAdmin()
+  // Admin gate (service role read) — only after user session exists
+  const admin = getSupabaseAdmin();
+
+  const meRes = await admin
     .from("profiles")
     .select("user_id,email,role")
     .eq("user_id", user.id)
@@ -80,22 +90,12 @@ export default async function OpsPresencePage({
   const meProfile = meRes.data as ProfileRow | null;
   const meErr = meRes.error;
 
+  // Deterministic: non-admins never see ops UI
   if (meErr || !meProfile || !isAdmin(meProfile.role)) {
-    return (
-      <main className="mx-auto w-full max-w-5xl px-6 py-16">
-        <h1 className="text-2xl font-semibold">Presence Ops</h1>
-        <p className="mt-2 text-sm opacity-80">Access denied.</p>
-        <Link
-          href="/account"
-          className="mt-6 inline-block underline underline-offset-4"
-        >
-          Go to Account
-        </Link>
-      </main>
-    );
+    redirect("/account");
   }
 
-  const id = searchParams?.id ?? null;
+  const id = normalizeSearchParam(searchParams?.id);
 
   // -------------------------
   // DETAIL VIEW: /ops/presence?id=<uuid>
@@ -121,7 +121,7 @@ export default async function OpsPresencePage({
       );
     }
 
-    const orderRes = await getSupabaseAdmin()
+    const orderRes = await admin
       .from("presence_orders")
       .select("id,user_id,package_key,status,onboarding,created_at,updated_at")
       .eq("id", id)
@@ -163,7 +163,7 @@ export default async function OpsPresencePage({
       );
     }
 
-    const customerRes = await getSupabaseAdmin()
+    const customerRes = await admin
       .from("profiles")
       .select("user_id,email,role")
       .eq("user_id", order.user_id)
@@ -240,7 +240,7 @@ export default async function OpsPresencePage({
   // -------------------------
   // LIST VIEW: /ops/presence
   // -------------------------
-  const ordersRes = await getSupabaseAdmin()
+  const ordersRes = await admin
     .from("presence_orders")
     .select("id,user_id,package_key,status,created_at,updated_at")
     .order("created_at", { ascending: false })
@@ -265,7 +265,7 @@ export default async function OpsPresencePage({
 
   const profilesRes =
     userIds.length > 0
-      ? await getSupabaseAdmin()
+      ? await admin
           .from("profiles")
           .select("user_id,email,role")
           .in("user_id", userIds)

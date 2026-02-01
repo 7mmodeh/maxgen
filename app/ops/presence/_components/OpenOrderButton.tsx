@@ -9,10 +9,14 @@ export default function OpenOrderButton({ id }: { id: string }) {
     <button
       type="button"
       className="underline underline-offset-4"
-      onClick={() => {
+      onClick={(e) => {
+        // prevent any parent click handlers / overlays from hijacking the click
+        e.preventDefault();
+        e.stopPropagation();
+
         const href = `/ops/presence?id=${encodeURIComponent(id)}`;
         router.push(href);
-        router.refresh(); // forces the /ops/presence server component to re-run with new searchParams
+        router.refresh(); // force server component re-run so detail branch renders
       }}
     >
       Open
