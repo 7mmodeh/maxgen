@@ -40,7 +40,8 @@ export default async function OpsPresenceDetailPage({
 }: {
   params: { id: string };
 }) {
-  const id = params.id;
+  const rawId = params.id;
+  const decodedId = decodeURIComponent(rawId);
 
   const supabase = await supabaseServer();
   const { data: u } = await supabase.auth.getUser();
@@ -62,16 +63,26 @@ export default async function OpsPresenceDetailPage({
     );
   }
 
-  if (!isUuid(id)) {
+  // Show what we actually received if UUID check fails
+  if (!isUuid(decodedId)) {
     return (
       <main className="mx-auto w-full max-w-5xl px-6 py-16">
         <h1 className="text-2xl font-semibold">Presence Ops</h1>
         <p className="mt-2 text-sm opacity-80">
           Invalid order id (not a UUID).
         </p>
-        <pre className="mt-4 rounded-xl border p-4 text-xs overflow-auto">
-          id = {id}
-        </pre>
+
+        <div className="mt-4 rounded-xl border p-4 text-xs overflow-auto">
+          <div>
+            <span className="opacity-70">params.id (raw):</span>{" "}
+            <span className="font-mono">{rawId}</span>
+          </div>
+          <div className="mt-2">
+            <span className="opacity-70">decoded:</span>{" "}
+            <span className="font-mono">{decodedId}</span>
+          </div>
+        </div>
+
         <Link
           href="/ops/presence"
           prefetch={false}
@@ -83,6 +94,7 @@ export default async function OpsPresenceDetailPage({
     );
   }
 
+  const id = decodedId;
   const admin = getSupabaseAdmin();
 
   const meRes = await admin
