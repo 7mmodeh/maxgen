@@ -68,7 +68,7 @@ export default async function OpsPresenceDetailPage({
   params: { id?: string };
 }) {
   // Unique fingerprint to prove which file is executing in production
-  const FILE_FINGERPRINT = "OPS_PRESENCE_DETAIL_VERCEL_DEBUG_v3";
+  const FILE_FINGERPRINT = "OPS_PRESENCE_DETAIL_VERCEL_DEBUG_v2";
 
   const rawId = params?.id;
   const decodedId = tryDecodeURIComponent(rawId);
@@ -100,10 +100,6 @@ export default async function OpsPresenceDetailPage({
         <p className="mt-2 text-sm opacity-80">
           Invalid order id (not a UUID).
         </p>
-        <div className="font-mono text-xs">BUILD_MARKER: 2026-02-01T11:55Z</div>
-        <div className="mt-2 font-mono text-xs">
-          PATH_HINT: /ops/presence/[id]
-        </div>
 
         <div className="mt-4 rounded-xl border p-4 text-xs overflow-auto space-y-2">
           <div className="font-mono opacity-70">{FILE_FINGERPRINT}</div>
