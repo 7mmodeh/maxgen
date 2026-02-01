@@ -16,7 +16,7 @@ type ProfileRow = {
   role: UserRole;
 };
 
-type PresenceOrderRow = {
+type PresenceOrderDetailRow = {
   id: string;
   user_id: string;
   package_key: string;
@@ -25,6 +25,8 @@ type PresenceOrderRow = {
   created_at: string;
   updated_at: string;
 };
+
+type PresenceOrderListRow = Omit<PresenceOrderDetailRow, "onboarding">;
 
 function isAdmin(role: unknown): role is "admin" {
   return role === "admin";
@@ -44,10 +46,35 @@ function safeDecodeURIComponent(v: string): string {
   }
 }
 
-export default async function OpsPresencePage({
-  searchParams,
-}: {
-  searchParams?: { id?: string | string[] };
+type SearchParamsShape = { id?: string | string[] };
+
+function isPromiseLike<T>(v: unknown): v is PromiseLike<T> {
+  if (typeof v !== "object" || v === null) return false;
+  const maybe = v as { then?: unknown };
+  return typeof maybe.then === "function";
+}
+
+async function resolveSearchParams(
+  input: unknown,
+): Promise<SearchParamsShape | null> {
+  if (isPromiseLike<SearchParamsShape>(input)) {
+    const awaited = await input;
+    return typeof awaited === "object" && awaited !== null ? awaited : null;
+  }
+  if (typeof input === "object" && input !== null) {
+    return input as SearchParamsShape;
+  }
+  return null;
+}
+
+function pickFirstId(v: unknown): string | null {
+  if (typeof v === "string") return v;
+  if (Array.isArray(v) && v.length > 0 && typeof v[0] === "string") return v[0];
+  return null;
+}
+
+export default async function OpsPresencePage(props: {
+  searchParams?: unknown;
 }) {
   const supabase = await supabaseServer();
   const { data: u } = await supabase.auth.getUser();
@@ -96,15 +123,10 @@ export default async function OpsPresencePage({
     );
   }
 
-  const rawIdParam = searchParams?.id;
-  const idParam =
-    typeof rawIdParam === "string"
-      ? rawIdParam
-      : Array.isArray(rawIdParam) && rawIdParam.length > 0
-        ? rawIdParam[0]
-        : null;
-
-  const decodedId = idParam ? safeDecodeURIComponent(idParam).trim() : null;
+  // ✅ IMPORTANT: searchParams may be a Promise in your Next.js runtime
+  const sp = await resolveSearchParams(props.searchParams);
+  const rawId = pickFirstId(sp?.id);
+  const decodedId = rawId ? safeDecodeURIComponent(rawId).trim() : null;
 
   // -------------------------
   // DETAIL VIEW: /ops/presence?id=<uuid>
@@ -119,7 +141,11 @@ export default async function OpsPresencePage({
           </p>
           <div className="mt-4 rounded-xl border p-4 text-xs overflow-auto">
             <div>
-              <span className="opacity-70">searchParams.id:</span>{" "}
+              <span className="opacity-70">raw:</span>{" "}
+              <span className="font-mono">{rawId ?? "null"}</span>
+            </div>
+            <div className="mt-2">
+              <span className="opacity-70">decoded:</span>{" "}
               <span className="font-mono">{decodedId}</span>
             </div>
           </div>
@@ -140,7 +166,7 @@ export default async function OpsPresencePage({
       .eq("id", decodedId)
       .maybeSingle();
 
-    const order = orderRes.data as PresenceOrderRow | null;
+    const order = orderRes.data as PresenceOrderDetailRow | null;
 
     if (orderRes.error) {
       return (
@@ -262,9 +288,7 @@ export default async function OpsPresencePage({
     .order("created_at", { ascending: false })
     .limit(200);
 
-  const orders =
-    (ordersRes.data as Array<Omit<PresenceOrderRow, "onboarding">> | null) ??
-    [];
+  const orders = (ordersRes.data as PresenceOrderListRow[] | null) ?? [];
 
   if (ordersRes.error) {
     return (
