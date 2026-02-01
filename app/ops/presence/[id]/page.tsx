@@ -100,6 +100,7 @@ export default async function OpsPresenceDetailPage({
         <p className="mt-2 text-sm opacity-80">
           Invalid order id (not a UUID).
         </p>
+        <div className="font-mono text-xs">BUILD_MARKER: 2026-02-01T11:55Z</div>
 
         <div className="mt-4 rounded-xl border p-4 text-xs overflow-auto space-y-2">
           <div className="font-mono opacity-70">{FILE_FINGERPRINT}</div>
