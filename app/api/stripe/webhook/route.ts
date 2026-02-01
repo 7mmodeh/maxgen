@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import { stripe } from "@/src/lib/stripe";
-import { supabaseAdmin } from "@/src/lib/supabase-admin";
+import { getSupabaseAdmin } from "@/src/lib/supabase-admin";
 import {
   productKeyFromPriceId,
   planFromPriceId,
@@ -28,7 +28,7 @@ async function rawBody(req: Request): Promise<Buffer> {
 async function resolveUserIdFromCustomer(
   stripeCustomerId: string
 ): Promise<string | null> {
-  const { data, error } = await supabaseAdmin
+  const { data, error } = await getSupabaseAdmin()
     .from("stripe_customers")
     .select("user_id")
     .eq("stripe_customer_id", stripeCustomerId)
@@ -86,7 +86,7 @@ async function upsertEntitlement(args: {
     updated_at: now,
   };
 
-  const { error } = await supabaseAdmin
+  const { error } = await getSupabaseAdmin()
     .from("entitlements")
     .upsert(payload, { onConflict: "user_id,product_key,plan" });
 
@@ -103,7 +103,7 @@ async function upsertPresenceOrder(args: {
   // - UNIQUE INDEX on stripe_checkout_session_id
   const now = new Date().toISOString();
 
-  const { error } = await supabaseAdmin
+  const { error } = await getSupabaseAdmin()
     .from("presence_orders")
     .upsert(
       {
