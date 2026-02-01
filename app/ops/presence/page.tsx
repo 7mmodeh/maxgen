@@ -86,13 +86,13 @@ function statusBadgeClasses(status: string): string {
   // (No new deps; just utility classes.)
   const base =
     "inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold";
-  if (status === "paid") return `${base} border-amber-300 bg-amber-50`;
+  if (status === "paid") return `${base} border-amber-300 bg-black-50`;
   if (status === "onboarding_received")
-    return `${base} border-sky-300 bg-sky-50`;
-  if (status === "in_progress") return `${base} border-blue-300 bg-blue-50`;
-  if (status === "delivered") return `${base} border-emerald-300 bg-emerald-50`;
+    return `${base} border-sky-300 bg-black-50`;
+  if (status === "in_progress") return `${base} border-blue-300 bg-black-50`;
+  if (status === "delivered") return `${base} border-emerald-300 bg-black-50`;
   if (status === "canceled") return `${base} border-rose-300 bg-rose-50`;
-  return `${base} border-gray-300 bg-gray-50`;
+  return `${base} border-gray-300 bg-black-50`;
 }
 
 function toOnboardingEntries(
