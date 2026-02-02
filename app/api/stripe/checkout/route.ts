@@ -10,8 +10,7 @@ type CheckoutBody =
   | { kind: "presence"; tier: "basic" | "booking"; withMonthly?: boolean }
   | { kind: "presence"; tier: "seo" } // mandatory monthly
   | { kind: "qr_studio"; billing: "monthly" | "onetime" }
-  | { kind: "qr_print_pack" }
-  | { kind: "experimental_eur1" };
+  | { kind: "qr_print_pack" };
 
 function siteUrl(): string {
   const v = process.env.NEXT_PUBLIC_SITE_URL;
@@ -133,12 +132,7 @@ export async function POST(req: Request) {
       metadata.plan = "onetime";
       mode = "payment";
       line_items = [{ price: STRIPE_PRICES.qr.printPack.onetime, quantity: 1 }];
-    } else if (body.kind === "experimental_eur1") {
-      metadata.product_key = "experimental_eur1";
-      metadata.plan = "onetime";
-      mode = "payment";
-      line_items = [{ price: STRIPE_PRICES.experimental.eur1.onetime, quantity: 1 }];
-    } else {
+    }  else {
       return NextResponse.json({ error: "Invalid request" }, { status: 400 });
     }
 
