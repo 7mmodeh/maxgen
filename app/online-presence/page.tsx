@@ -3,6 +3,7 @@ import Link from "next/link";
 import { supabaseServer } from "@/src/lib/supabase/server";
 import { FadeIn, Stagger, Item } from "../_components/motion";
 import PresenceCheckoutButtons from "../_components/PresenceCheckoutButtons";
+import ExperimentalCheckoutButton from "./_components/ExperimentalCheckoutButton";
 
 type PackageKey = "basic" | "booking" | "seo";
 
@@ -442,6 +443,17 @@ export default async function OnlinePresencePage() {
                       Sign in
                     </Link>
                   )}
+
+                  {user ? (
+                    <ExperimentalCheckoutButton
+                      className="inline-flex items-center justify-center rounded-lg px-5 py-3 text-sm font-semibold transition"
+                      style={{
+                        border: "1px solid rgba(255,255,255,0.14)",
+                        color: "rgba(255,255,255,0.9)",
+                        background: "rgba(30,41,59,0.25)",
+                      }}
+                    />
+                  ) : null}
                 </div>
 
                 {/* Optional micro-copy under CTAs */}

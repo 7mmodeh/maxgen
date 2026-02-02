@@ -4,13 +4,13 @@ import { STRIPE_PRICES } from "@/src/config/stripe-prices";
 
 export const runtime = "nodejs";
 
-
 export type ProductKey =
   | "presence_basic"
   | "presence_booking"
   | "presence_seo"
   | "qr_studio"
-  | "qr_print_pack";
+  | "qr_print_pack"
+  | "experimental_eur1";
 
 export type Plan = "monthly" | "onetime";
 
@@ -40,6 +40,10 @@ export function productKeyFromPriceId(priceId: string): ProductKey | null {
     case STRIPE_PRICES.qr.printPack.onetime:
       return "qr_print_pack";
 
+    // Experimental €1 (one-time)
+    case STRIPE_PRICES.experimental.eur1.onetime:
+      return "experimental_eur1";
+
     default:
       return null;
   }
@@ -58,6 +62,7 @@ export function planFromPriceId(priceId: string): Plan | null {
     case STRIPE_PRICES.presence.seo.onetime:
     case STRIPE_PRICES.qr.studio.onetime:
     case STRIPE_PRICES.qr.printPack.onetime:
+    case STRIPE_PRICES.experimental.eur1.onetime:
       return "onetime";
 
     default:

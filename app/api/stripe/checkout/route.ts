@@ -10,7 +10,8 @@ type CheckoutBody =
   | { kind: "presence"; tier: "basic" | "booking"; withMonthly?: boolean }
   | { kind: "presence"; tier: "seo" } // mandatory monthly
   | { kind: "qr_studio"; billing: "monthly" | "onetime" }
-  | { kind: "qr_print_pack" };
+  | { kind: "qr_print_pack" }
+  | { kind: "experimental_eur1" };
 
 function siteUrl(): string {
   const v = process.env.NEXT_PUBLIC_SITE_URL;
@@ -43,10 +44,13 @@ async function getOrCreateStripeCustomer(userId: string, email?: string | null) 
     metadata: { supabase_user_id: userId },
   });
 
-  const { error: insErr } = await getSupabaseAdmin().from("stripe_customers").insert({
-    user_id: userId,
-    stripe_customer_id: customer.id,
-  });
+  const { error: insErr } = await getSupabaseAdmin()
+    .from("stripe_customers")
+    .insert({
+      user_id: userId,
+      stripe_customer_id: customer.id,
+    });
+
   if (insErr) throw insErr;
 
   return customer.id;
@@ -55,7 +59,9 @@ async function getOrCreateStripeCustomer(userId: string, email?: string | null) 
 export async function POST(req: Request) {
   try {
     const user = await userFromBearer(req);
-    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
 
     const body = (await req.json()) as CheckoutBody;
 
@@ -75,8 +81,8 @@ export async function POST(req: Request) {
         body.tier === "basic"
           ? "presence_basic"
           : body.tier === "booking"
-          ? "presence_booking"
-          : "presence_seo";
+            ? "presence_booking"
+            : "presence_seo";
 
       metadata.product_key = productKey;
 
@@ -127,6 +133,11 @@ export async function POST(req: Request) {
       metadata.plan = "onetime";
       mode = "payment";
       line_items = [{ price: STRIPE_PRICES.qr.printPack.onetime, quantity: 1 }];
+    } else if (body.kind === "experimental_eur1") {
+      metadata.product_key = "experimental_eur1";
+      metadata.plan = "onetime";
+      mode = "payment";
+      line_items = [{ price: STRIPE_PRICES.experimental.eur1.onetime, quantity: 1 }];
     } else {
       return NextResponse.json({ error: "Invalid request" }, { status: 400 });
     }
@@ -141,15 +152,10 @@ export async function POST(req: Request) {
     });
 
     return NextResponse.json({ url: session.url }, { status: 200 });
-    } catch (e: unknown) {
-  console.error("checkout error (raw):", e);
-  const msg = e instanceof Error ? e.message : String(e);
-  console.error("checkout error:", msg);
-  return NextResponse.json({ error: msg }, { status: 500 });
-}
-  // } catch (e: unknown) {
-  //   const msg = e instanceof Error ? e.message : String(e);
-  //   console.error("checkout error:", msg);
-  //   return NextResponse.json({ error: "Checkout failed" }, { status: 500 });
-  // }
+  } catch (e: unknown) {
+    console.error("checkout error (raw):", e);
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error("checkout error:", msg);
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }
 }

@@ -26,7 +26,8 @@ export type StripePriceKey =
   | "presence_seo_monthly"
   | "qr_studio_monthly"
   | "qr_studio_onetime"
-  | "qr_print_pack_onetime";
+  | "qr_print_pack_onetime"
+  | "experimental_eur1_onetime";
 
 function mustGetEnv(key: string): string {
   const v = process.env[key];
@@ -61,13 +62,16 @@ export const STRIPE_PRICES = Object.freeze({
       onetime: mustGetEnv("PRICE_QR_PRINT_PACK_ONETIME"),
     },
   },
+
+  experimental: {
+    eur1: {
+      onetime: mustGetEnv("PRICE_EXPERIMENTAL_EUR1_ONETIME"),
+    },
+  },
 } as const);
 
 // Convenience helpers (optional but recommended)
-export function getPresencePrice(
-  tier: PresenceTier,
-  kind: BillingKind
-): string {
+export function getPresencePrice(tier: PresenceTier, kind: BillingKind): string {
   return STRIPE_PRICES.presence[tier][kind];
 }
 
@@ -77,4 +81,8 @@ export function getQrStudioPrice(kind: "monthly" | "onetime"): string {
 
 export function getQrPrintPackPrice(): string {
   return STRIPE_PRICES.qr.printPack.onetime;
+}
+
+export function getExperimentalEur1Price(): string {
+  return STRIPE_PRICES.experimental.eur1.onetime;
 }
