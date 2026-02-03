@@ -15,14 +15,10 @@ export type QrProjectRow = {
   logo_path: string | null;
 };
 
-type SvgSize = {
-  width: number;
-};
+type SvgSize = { width: number };
 
 function assertTemplate(templateId: string, templateVersion: number) {
-  if (templateVersion !== 1) {
-    throw new Error(`Unsupported template_version: ${templateVersion}`);
-  }
+  if (templateVersion !== 1) throw new Error(`Unsupported template_version: ${templateVersion}`);
   const t = TEMPLATES_V1[templateId as TemplateId];
   if (!t) throw new Error(`Unsupported template_id: ${templateId}`);
   return t;
@@ -35,8 +31,6 @@ function normalizeUrl(input: string): string {
 }
 
 function makeSvgResponsive(svg: string): string {
-  // Remove fixed pixel sizing to prevent layout overflow.
-  // Keeps viewBox and makes it responsive in container.
   return svg
     .replace(/width="[^"]*"/g, "")
     .replace(/height="[^"]*"/g, "")
@@ -55,7 +49,7 @@ export async function generateQrSvg(
   const svg = await QRCode.toString(url, {
     type: "svg",
     errorCorrectionLevel: "H",
-    margin: 4, // quiet zone
+    margin: 4,
     width,
   });
 
@@ -65,80 +59,101 @@ export async function generateQrSvg(
 async function fetchLogoBytesFromPrivateBucket(logoPath: string): Promise<Buffer> {
   const sb = await supabaseServer();
 
-  const { data, error } = await sb.storage
-    .from("qr-logos")
-    .createSignedUrl(logoPath, 60);
-
-  if (error || !data?.signedUrl) {
-    throw new Error("Failed to create signed logo URL");
-  }
+  const { data, error } = await sb.storage.from("qr-logos").createSignedUrl(logoPath, 60);
+  if (error || !data?.signedUrl) throw new Error("Failed to create signed logo URL");
 
   const res = await fetch(data.signedUrl);
   if (!res.ok) throw new Error("Failed to fetch logo bytes");
-
   const ab = await res.arrayBuffer();
   return Buffer.from(ab);
 }
 
+function roundedBadgeSvg(w: number, h: number, radius: number): string {
+  // Flat, scanner-safe badge: white fill + subtle border (no shadow).
+  // Border is optional but improves “built-in” look on white QR background.
+  const stroke = "#E5E7EB"; // neutral-200
+  return `
+  <svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" xmlns="http://www.w3.org/2000/svg">
+    <rect x="0" y="0" width="${w}" height="${h}" rx="${radius}" ry="${radius}" fill="#FFFFFF"/>
+    <rect x="0.5" y="0.5" width="${w - 1}" height="${h - 1}" rx="${Math.max(0, radius - 0.5)}" ry="${Math.max(
+      0,
+      radius - 0.5
+    )}" fill="none" stroke="${stroke}" stroke-width="1"/>
+  </svg>
+  `.trim();
+}
+
+async function makeRoundedLogo(logoBytes: Buffer, size: number, radius: number): Promise<Buffer> {
+  // Resize logo into a square, then clip it with rounded corners for a premium look.
+  const resized = await sharp(logoBytes)
+    .resize(size, size, { fit: "contain", background: { r: 255, g: 255, b: 255, alpha: 0 } })
+    .png()
+    .toBuffer();
+
+  const maskSvg = Buffer.from(
+    `
+    <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" xmlns="http://www.w3.org/2000/svg">
+      <rect x="0" y="0" width="${size}" height="${size}" rx="${radius}" ry="${radius}" fill="#fff"/>
+    </svg>
+    `.trim()
+  );
+
+  return sharp(resized)
+    .composite([{ input: maskSvg, blend: "dest-in" }])
+    .png()
+    .toBuffer();
+}
+
 export async function generateQrPng(project: QrProjectRow): Promise<Buffer> {
   const t = assertTemplate(project.template_id, project.template_version);
-
   const url = normalizeUrl(project.url);
 
   const qrPng = await QRCode.toBuffer(url, {
     type: "png",
     errorCorrectionLevel: "H",
-    margin: 4, // quiet zone
+    margin: 4, // quiet zone enforced
     width: 1024,
     scale: 1,
   });
 
+  // No logo allowed (T3) or not provided
   if (!t.allowLogo || !project.logo_path) return qrPng;
 
   const logoBytes = await fetchLogoBytesFromPrivateBucket(project.logo_path);
 
   const base = sharp(qrPng);
   const meta = await base.metadata();
-
   const size = meta.width ?? 1024;
+
+  // Your rule: logo area limited by maxLogoRatio (<= 22%)
   const logoMax = Math.floor(size * t.maxLogoRatio);
 
-  const logo = sharp(logoBytes).resize(logoMax, logoMax, {
-    fit: "inside",
-    withoutEnlargement: true,
-  });
+  // Badge padding (kept conservative for scan safety)
+  const pad = Math.max(12, Math.floor(size * 0.018)); // ~18px at 1024
+  const badgeSize = logoMax + pad * 2;
 
-  const logoPng = await logo.png().toBuffer();
-  const logoMeta = await sharp(logoPng).metadata();
+  // Rounded corners: “Revolut-like” badge feel
+  const badgeRadius = Math.floor(badgeSize * 0.22); // ~22% radius
+  const logoRadius = Math.floor(logoMax * 0.18); // slightly tighter than badge
 
-  const lw = logoMeta.width ?? logoMax;
-  const lh = logoMeta.height ?? logoMax;
+  // Center positioning
+  const left = Math.floor((size - badgeSize) / 2);
+  const top = Math.floor((size - badgeSize) / 2);
 
-  const pad = Math.max(10, Math.floor(size * 0.014));
-  const boxW = lw + pad * 2;
-  const boxH = lh + pad * 2;
+  // Build badge image (white rounded rect + subtle border)
+  const badgeSvg = Buffer.from(roundedBadgeSvg(badgeSize, badgeSize, badgeRadius));
+  const badgePng = await sharp(badgeSvg).png().toBuffer();
 
-  const left = Math.floor((size - boxW) / 2);
-  const top = Math.floor((size - boxH) / 2);
+  // Rounded logo clipped
+  const roundedLogo = await makeRoundedLogo(logoBytes, logoMax, logoRadius);
 
-  const knockout = await sharp({
-    create: {
-      width: boxW,
-      height: boxH,
-      channels: 4,
-      background: { r: 255, g: 255, b: 255, alpha: 1 },
-    },
-  })
-    .png()
-    .toBuffer();
-
-  const logoLeft = left + pad + Math.floor((boxW - pad * 2 - lw) / 2);
-  const logoTop = top + pad + Math.floor((boxH - pad * 2 - lh) / 2);
+  const logoLeft = left + pad;
+  const logoTop = top + pad;
 
   return base
     .composite([
-      { input: knockout, left, top },
-      { input: logoPng, left: logoLeft, top: logoTop },
+      { input: badgePng, left, top }, // rounded white badge
+      { input: roundedLogo, left: logoLeft, top: logoTop }, // clipped logo
     ])
     .png()
     .toBuffer();
