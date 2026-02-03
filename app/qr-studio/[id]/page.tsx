@@ -19,7 +19,7 @@ async function updateProject(id: string, formData: FormData) {
   if (!user) redirect("/login");
 
   const entitled = await hasQrStudioEntitlement(user.id);
-  if (!entitled) redirect("/qr-studio");
+  if (!entitled) redirect("/qr-studio#pricing");
 
   const business_name = String(formData.get("business_name") ?? "").trim();
   const url = String(formData.get("url") ?? "").trim();
@@ -46,10 +46,13 @@ async function updateProject(id: string, formData: FormData) {
 
 export default async function QrProjectPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { id } = await params;
+  const sp = await searchParams;
 
   const sb = await supabaseServer();
   const { data } = await sb.auth.getUser();
@@ -57,193 +60,250 @@ export default async function QrProjectPage({
   if (!user) redirect("/login");
 
   const entitled = await hasQrStudioEntitlement(user.id);
-  if (!entitled) redirect("/qr-studio");
+  if (!entitled) redirect("/qr-studio#pricing");
 
   const { data: proj, error } = await sb
     .from("qr_projects")
     .select("*")
     .eq("id", id)
     .maybeSingle();
-
-  if (error) {
-    console.error("[qr project] load error:", error);
-    redirect("/qr-studio");
-  }
-
-  if (!proj || proj.user_id !== user.id) redirect("/qr-studio");
+  if (error || !proj || proj.user_id !== user.id)
+    redirect("/qr-studio/dashboard");
 
   const project = proj as QrProjectRow;
   const template = isTemplateId(project.template_id)
     ? TEMPLATES_V1[project.template_id]
     : null;
 
-  const svg = await generateQrSvg(project);
+  // IMPORTANT: preview is small + responsive, not 1024px injected
+  const svg = await generateQrSvg(project, { size: { width: 320 } });
+
+  const uploadStatus = Array.isArray(sp.upload) ? sp.upload[0] : sp.upload;
+  const uploadReason = Array.isArray(sp.reason) ? sp.reason[0] : sp.reason;
+
+  const showOk = uploadStatus === "ok";
+  const showErr = uploadStatus === "error";
 
   return (
-    <main className="mx-auto w-full max-w-5xl px-6 py-10">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold">{project.business_name}</h1>
-          <p className="mt-2 text-sm text-neutral-600">{project.url}</p>
-        </div>
-        <Link
-          href="/qr-studio"
-          className="text-sm text-neutral-600 hover:underline"
-        >
-          Back
-        </Link>
-      </div>
-
-      <div className="mt-8 grid gap-6 lg:grid-cols-2">
-        {/* Preview */}
-        <section className="rounded-xl border border-neutral-200 bg-white p-6">
-          <h2 className="text-lg font-semibold">Preview</h2>
-          <div className="mt-4 flex flex-col items-center">
-            <div
-              className="w-[280px] rounded-md border border-neutral-200 bg-white p-3"
-              // SVG comes from our server generator
-              dangerouslySetInnerHTML={{ __html: svg }}
-            />
-            {template?.allowText ? (
-              <div className="mt-3 w-[280px] text-center">
-                <div className="text-sm font-semibold">
-                  {project.business_name.slice(0, template.businessNameMax)}
-                </div>
-                {project.tagline ? (
-                  <div className="mt-1 text-xs text-neutral-600">
-                    {project.tagline.slice(0, template.taglineMax)}
-                  </div>
-                ) : null}
-              </div>
-            ) : null}
+    <main className="min-h-[calc(100vh-0px)] bg-[#0B1220] text-white">
+      <div className="mx-auto w-full max-w-6xl px-6 py-10">
+        {/* Header */}
+        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+          <div>
+            <div className="text-xs text-white/60">Maxgen QR Studio</div>
+            <h1 className="mt-1 text-2xl font-semibold">
+              {project.business_name}
+            </h1>
+            <div className="mt-2 text-sm text-white/70 break-all">
+              {project.url}
+            </div>
           </div>
 
-          <div className="mt-6 flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2">
+            <Link
+              href="/qr-studio/dashboard"
+              className="rounded-md border border-white/15 bg-white/5 px-4 py-2 text-sm font-medium hover:bg-white/10"
+            >
+              Back to Dashboard
+            </Link>
+
             <a
-              className="rounded-md bg-black px-4 py-2 text-sm font-medium text-white"
+              className="rounded-md bg-[#2563EB] px-4 py-2 text-sm font-semibold text-white hover:opacity-95"
               href={`/api/qr/download?project_id=${project.id}&format=png`}
             >
               Download PNG (1024)
             </a>
+
             <a
-              className="rounded-md border border-neutral-300 bg-white px-4 py-2 text-sm font-medium text-neutral-900"
+              className="rounded-md border border-white/15 bg-white/5 px-4 py-2 text-sm font-medium hover:bg-white/10"
               href={`/api/qr/download?project_id=${project.id}&format=svg`}
             >
               Download SVG
             </a>
           </div>
+        </div>
 
-          <p className="mt-3 text-xs text-neutral-500">
-            PNG includes logo overlay (if uploaded and template allows). SVG is
-            clean QR only (v1).
-          </p>
-        </section>
+        {/* Upload feedback */}
+        {showOk ? (
+          <div className="mt-6 rounded-xl border border-emerald-400/20 bg-emerald-400/10 p-4 text-sm text-emerald-100">
+            Logo uploaded successfully.
+          </div>
+        ) : null}
 
-        {/* Edit + Logo */}
-        <section className="rounded-xl border border-neutral-200 bg-white p-6">
-          <h2 className="text-lg font-semibold">Project settings</h2>
+        {showErr ? (
+          <div className="mt-6 rounded-xl border border-rose-400/20 bg-rose-400/10 p-4 text-sm text-rose-100">
+            Logo upload failed{uploadReason ? `: ${uploadReason}` : ""}.
+          </div>
+        ) : null}
 
-          <form
-            action={updateProject.bind(null, project.id)}
-            className="mt-4 space-y-4"
-          >
-            <div>
-              <label className="text-sm font-medium">Business name</label>
-              <input
-                name="business_name"
-                required
-                defaultValue={project.business_name}
-                className="mt-1 w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
+        {/* Main grid */}
+        <div className="mt-8 grid gap-6 lg:grid-cols-5">
+          {/* Preview card */}
+          <section className="lg:col-span-2 rounded-2xl border border-white/10 bg-white/5 p-6">
+            <div className="flex items-center justify-between">
+              <div className="text-sm font-semibold">Preview</div>
+              <div className="text-xs text-white/60">
+                {project.template_id} v{project.template_version}
+              </div>
+            </div>
+
+            <div className="mt-5 rounded-xl bg-white p-4">
+              <div
+                className="mx-auto w-full max-w-[320px] [&>svg]:w-full [&>svg]:h-auto [&>svg]:block"
+                dangerouslySetInnerHTML={{ __html: svg }}
               />
             </div>
 
-            <div>
-              <label className="text-sm font-medium">Tagline (optional)</label>
-              <input
-                name="tagline"
-                defaultValue={project.tagline ?? ""}
-                className="mt-1 w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
-              />
-              {template?.allowText ? (
-                <p className="mt-1 text-xs text-neutral-500">
-                  T2 limits: name {template.businessNameMax} chars, tagline{" "}
-                  {template.taglineMax} chars.
-                </p>
-              ) : (
-                <p className="mt-1 text-xs text-neutral-500">
-                  T1/T3 don’t render text.
-                </p>
-              )}
-            </div>
-
-            <div>
-              <label className="text-sm font-medium">URL</label>
-              <input
-                name="url"
-                required
-                defaultValue={project.url}
-                className="mt-1 w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
-              />
-            </div>
-
-            <div>
-              <label className="text-sm font-medium">Template</label>
-              <select
-                name="template_id"
-                defaultValue={project.template_id}
-                className="mt-1 w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
-              >
-                <option value="T1">T1 — Clean</option>
-                <option value="T2">T2 — Clean + Label</option>
-                <option value="T3">T3 — Scan-max</option>
-              </select>
-            </div>
-
-            <button className="rounded-md bg-black px-4 py-2 text-sm font-medium text-white">
-              Save changes
-            </button>
-          </form>
-
-          <div className="mt-8 border-t border-neutral-200 pt-6">
-            <h3 className="text-sm font-semibold">Logo upload</h3>
-            <p className="mt-1 text-xs text-neutral-500">
-              Logos are stored privately in Supabase Storage (qr-logos). Only
-              your account can access your files.
-            </p>
-
-            {project.template_id === "T3" ? (
-              <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-                T3 doesn’t allow logos (scan-max).
+            {template?.allowText ? (
+              <div className="mt-4 text-center">
+                <div className="text-sm font-semibold">
+                  {project.business_name.slice(0, template.businessNameMax)}
+                </div>
+                {project.tagline ? (
+                  <div className="mt-1 text-xs text-white/70">
+                    {project.tagline.slice(0, template.taglineMax)}
+                  </div>
+                ) : null}
               </div>
             ) : (
-              <form
-                className="mt-3 flex flex-col gap-2"
-                action="/api/qr/logo"
-                method="post"
-                encType="multipart/form-data"
-              >
-                <input type="hidden" name="project_id" value={project.id} />
-                <input
-                  name="file"
-                  type="file"
-                  accept="image/png,image/jpeg,image/webp,image/svg+xml"
-                  className="text-sm"
-                  required
-                />
-                <button className="w-fit rounded-md border border-neutral-300 bg-white px-4 py-2 text-sm font-medium text-neutral-900">
-                  Upload logo
-                </button>
-              </form>
+              <div className="mt-4 text-xs text-white/60">
+                T1/T3 do not render text.
+              </div>
             )}
 
-            {project.logo_path ? (
-              <p className="mt-3 text-xs text-neutral-500">
-                Stored at:{" "}
-                <span className="font-mono">{project.logo_path}</span>
-              </p>
-            ) : null}
-          </div>
-        </section>
+            <div className="mt-5 text-xs text-white/60">
+              PNG includes logo overlay (T1/T2). SVG is clean QR only (v1).
+            </div>
+          </section>
+
+          {/* Settings card */}
+          <section className="lg:col-span-3 rounded-2xl border border-white/10 bg-white/5 p-6">
+            <div className="text-sm font-semibold">Project settings</div>
+            <div className="mt-1 text-xs text-white/60">
+              Simple inputs. Locked templates. Scanner-safe output.
+            </div>
+
+            <form
+              action={updateProject.bind(null, project.id)}
+              className="mt-6 grid gap-4 md:grid-cols-2"
+            >
+              <div className="md:col-span-2">
+                <label className="text-xs font-medium text-white/70">
+                  Business name
+                </label>
+                <input
+                  name="business_name"
+                  required
+                  defaultValue={project.business_name}
+                  className="mt-2 w-full rounded-md border border-white/10 bg-black/30 px-3 py-2 text-sm text-white placeholder:text-white/30 outline-none focus:border-white/25"
+                />
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="text-xs font-medium text-white/70">
+                  Tagline (optional)
+                </label>
+                <input
+                  name="tagline"
+                  defaultValue={project.tagline ?? ""}
+                  className="mt-2 w-full rounded-md border border-white/10 bg-black/30 px-3 py-2 text-sm text-white placeholder:text-white/30 outline-none focus:border-white/25"
+                />
+                {template?.allowText ? (
+                  <div className="mt-2 text-xs text-white/60">
+                    T2 limits: name {template.businessNameMax} chars, tagline{" "}
+                    {template.taglineMax} chars.
+                  </div>
+                ) : null}
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="text-xs font-medium text-white/70">URL</label>
+                <input
+                  name="url"
+                  required
+                  defaultValue={project.url}
+                  className="mt-2 w-full rounded-md border border-white/10 bg-black/30 px-3 py-2 text-sm text-white placeholder:text-white/30 outline-none focus:border-white/25"
+                />
+                <div className="mt-2 text-xs text-white/60">
+                  If you enter a domain without https://, it will normalize to
+                  https:// in output.
+                </div>
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="text-xs font-medium text-white/70">
+                  Template
+                </label>
+                <select
+                  name="template_id"
+                  defaultValue={project.template_id}
+                  className="mt-2 w-full rounded-md border border-white/10 bg-black/30 px-3 py-2 text-sm text-white outline-none focus:border-white/25"
+                >
+                  <option value="T1">T1 — Clean</option>
+                  <option value="T2">T2 — Clean + Label</option>
+                  <option value="T3">T3 — Scan-max</option>
+                </select>
+              </div>
+
+              <div className="md:col-span-2 flex justify-end">
+                <button className="rounded-md bg-[#2563EB] px-4 py-2 text-sm font-semibold text-white hover:opacity-95">
+                  Save changes
+                </button>
+              </div>
+            </form>
+
+            {/* Logo upload */}
+            <div className="mt-8 rounded-2xl border border-white/10 bg-black/20 p-5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-sm font-semibold">Logo</div>
+                  <div className="mt-1 text-xs text-white/60">
+                    Private storage. Limited to 22% for scan safety. (Not
+                    allowed on T3.)
+                  </div>
+                </div>
+              </div>
+
+              {project.template_id === "T3" ? (
+                <div className="mt-4 rounded-xl border border-amber-400/20 bg-amber-400/10 p-4 text-sm text-amber-100">
+                  Template T3 is scan-max and does not allow logos.
+                </div>
+              ) : (
+                <form
+                  className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center"
+                  action="/api/qr/logo"
+                  method="post"
+                  encType="multipart/form-data"
+                >
+                  <input type="hidden" name="project_id" value={project.id} />
+                  <input
+                    name="file"
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                    className="w-full text-sm text-white/80 file:mr-3 file:rounded-md file:border-0 file:bg-white/10 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-white/15"
+                    required
+                  />
+                  <button className="rounded-md bg-white px-4 py-2 text-sm font-semibold text-black hover:opacity-95">
+                    Upload logo
+                  </button>
+                </form>
+              )}
+
+              {project.logo_path ? (
+                <div className="mt-3 text-xs text-white/60">
+                  Stored at:{" "}
+                  <span className="font-mono text-white/80">
+                    {project.logo_path}
+                  </span>
+                </div>
+              ) : (
+                <div className="mt-3 text-xs text-white/60">
+                  No logo uploaded yet.
+                </div>
+              )}
+            </div>
+          </section>
+        </div>
       </div>
     </main>
   );
