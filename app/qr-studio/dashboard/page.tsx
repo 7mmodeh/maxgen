@@ -7,6 +7,7 @@ import {
   type QrStudioPlan,
 } from "@/src/lib/qr/entitlement";
 import ResetCountdown from "../_components/ResetCountdown";
+import ManageBillingButton from "../_components/ManageBillingButton";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -129,7 +130,6 @@ export default async function QrStudioDashboardPage({
   let canCreate = true;
   let createReason: string | null = null;
 
-  // Countdown unlock timestamp (only computed when blocked)
   let unlockAtIso: string | null = null;
 
   if (plan === "onetime") {
@@ -137,7 +137,6 @@ export default async function QrStudioDashboardPage({
       canCreate = false;
       createReason =
         "One-time access allows exactly 1 project total (lifetime). Deleting does not restore this.";
-      // No reset for lifetime one-time
       unlockAtIso = null;
     }
   } else {
@@ -155,9 +154,6 @@ export default async function QrStudioDashboardPage({
           "Monthly limit reached: max 20 new projects in a rolling 30-day window.";
       }
 
-      // Compute unlock time(s) based on the oldest event within each blocking window.
-      // Weekly unlock = oldest_in_7d + 7 days
-      // Monthly unlock = oldest_in_30d + 30 days
       const [oldest7Res, oldest30Res] = await Promise.all([
         blockedWeekly
           ? sb
@@ -187,7 +183,6 @@ export default async function QrStudioDashboardPage({
       const weeklyUnlock = oldest7 ? addDaysIso(oldest7, 7) : null;
       const monthlyUnlock = oldest30 ? addDaysIso(oldest30, 30) : null;
 
-      // If both limits are hit, choose the later unlock time (conservative, correct).
       unlockAtIso = maxIso(weeklyUnlock, monthlyUnlock);
     }
   }
@@ -263,15 +258,20 @@ export default async function QrStudioDashboardPage({
 
         <section className="mt-8 grid gap-6 lg:grid-cols-3">
           <div className="rounded-2xl border border-white/10 bg-white/5 p-6 lg:col-span-2">
-            <div className="flex items-center justify-between gap-3">
+            <div className="flex items-start justify-between gap-3">
               <div>
                 <div className="text-sm font-semibold">Your access</div>
                 <div className="mt-1 text-xs text-white/60">
                   Plan is derived from server-side entitlements.
                 </div>
               </div>
-              <div className="rounded-full border border-white/10 bg-black/20 px-3 py-1 text-xs text-white/80">
-                {planLabel(plan)}
+
+              <div className="flex items-center gap-2">
+                <div className="rounded-full border border-white/10 bg-black/20 px-3 py-1 text-xs text-white/80">
+                  {planLabel(plan)}
+                </div>
+
+                {plan === "monthly" ? <ManageBillingButton /> : null}
               </div>
             </div>
 
