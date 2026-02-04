@@ -1,4 +1,3 @@
-// app/qr-studio/[id]/page.tsx
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { supabaseServer } from "@/src/lib/supabase/server";
@@ -9,6 +8,27 @@ import { isTemplateId, TEMPLATES_V1 } from "@/src/lib/qr/templates";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
+
+type SearchParams = Record<string, string | string[] | undefined>;
+
+function first(sp: SearchParams, key: string): string | null {
+  const v = sp[key];
+  if (!v) return null;
+  return Array.isArray(v) ? (v[0] ?? null) : v;
+}
+
+function mapUpdateRpcErrorToQuery(code: string): string {
+  switch (code) {
+    case "edit_limit_reached":
+      return "edit_limit_reached";
+    case "not_owner":
+      return "not_owner";
+    case "no_entitlement":
+      return "no_entitlement";
+    default:
+      return "update_failed";
+  }
+}
 
 async function updateProject(id: string, formData: FormData) {
   "use server";
@@ -25,23 +45,28 @@ async function updateProject(id: string, formData: FormData) {
   const url = String(formData.get("url") ?? "").trim();
   const template_id = String(formData.get("template_id") ?? "").trim();
   const taglineRaw = String(formData.get("tagline") ?? "").trim();
-  const tagline = taglineRaw.length ? taglineRaw : null;
+  const tagline = taglineRaw.length ? taglineRaw : "";
 
   if (!business_name) throw new Error("Missing business_name");
   if (!url) throw new Error("Missing url");
   if (!isTemplateId(template_id)) throw new Error("Invalid template");
 
-  const { error } = await sb
-    .from("qr_projects")
-    .update({ business_name, tagline, url, template_id })
-    .eq("id", id);
+  const { error } = await sb.rpc("qr_update_project", {
+    p_project_id: id,
+    p_business_name: business_name,
+    p_tagline: tagline,
+    p_url: url,
+    p_template_id: template_id,
+  });
 
   if (error) {
-    console.error("[qr update] error:", error);
-    throw new Error("Failed to update project");
+    console.error("[qr update rpc] error:", error);
+    const msg = String((error as { message?: unknown } | null)?.message ?? "");
+    const code = mapUpdateRpcErrorToQuery(msg);
+    redirect(`/qr-studio/${id}?error=${encodeURIComponent(code)}`);
   }
 
-  redirect(`/qr-studio/${id}`);
+  redirect(`/qr-studio/${id}?updated=ok`);
 }
 
 export default async function QrProjectPage({
@@ -49,7 +74,7 @@ export default async function QrProjectPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
+  searchParams: Promise<SearchParams>;
 }) {
   const { id } = await params;
   const sp = await searchParams;
@@ -75,19 +100,30 @@ export default async function QrProjectPage({
     ? TEMPLATES_V1[project.template_id]
     : null;
 
-  // IMPORTANT: preview is small + responsive, not 1024px injected
+  // edit lock state (DB-authoritative)
+  const { count: editCount } = await sb
+    .from("qr_usage_events")
+    .select("*", { count: "exact", head: true })
+    .eq("project_id", project.id)
+    .eq("event", "edit");
+
+  const editsUsed = editCount ?? 0;
+  const editsRemaining = editsUsed >= 1 ? 0 : 1;
+  const isLocked = editsRemaining === 0;
+
   const svg = await generateQrSvg(project, { size: { width: 320 } });
 
-  const uploadStatus = Array.isArray(sp.upload) ? sp.upload[0] : sp.upload;
-  const uploadReason = Array.isArray(sp.reason) ? sp.reason[0] : sp.reason;
-
+  const uploadStatus = first(sp, "upload");
+  const uploadReason = first(sp, "reason");
   const showOk = uploadStatus === "ok";
   const showErr = uploadStatus === "error";
+
+  const err = first(sp, "error");
+  const updated = first(sp, "updated");
 
   return (
     <main className="min-h-[calc(100vh-0px)] bg-[#0B1220] text-white">
       <div className="mx-auto w-full max-w-6xl px-6 py-10">
-        {/* Header */}
         <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div>
             <div className="text-xs text-white/60">Maxgen QR Studio</div>
@@ -123,7 +159,19 @@ export default async function QrProjectPage({
           </div>
         </div>
 
-        {/* Upload feedback */}
+        {updated === "ok" ? (
+          <div className="mt-6 rounded-xl border border-emerald-400/20 bg-emerald-400/10 p-4 text-sm text-emerald-100">
+            Saved successfully.
+          </div>
+        ) : null}
+
+        {err === "edit_limit_reached" || isLocked ? (
+          <div className="mt-6 rounded-xl border border-amber-400/20 bg-amber-400/10 p-4 text-sm text-amber-100">
+            This project is locked. You can only edit a project once (lifetime).
+            Downloads and deletion still work.
+          </div>
+        ) : null}
+
         {showOk ? (
           <div className="mt-6 rounded-xl border border-emerald-400/20 bg-emerald-400/10 p-4 text-sm text-emerald-100">
             Logo uploaded successfully.
@@ -136,15 +184,20 @@ export default async function QrProjectPage({
           </div>
         ) : null}
 
-        {/* Main grid */}
         <div className="mt-8 grid gap-6 lg:grid-cols-5">
-          {/* Preview card */}
           <section className="lg:col-span-2 rounded-2xl border border-white/10 bg-white/5 p-6">
             <div className="flex items-center justify-between">
               <div className="text-sm font-semibold">Preview</div>
               <div className="text-xs text-white/60">
                 {project.template_id} v{project.template_version}
               </div>
+            </div>
+
+            <div className="mt-3 rounded-full border border-white/10 bg-black/20 px-3 py-1 text-xs text-white/70 inline-flex">
+              Edits remaining:{" "}
+              <span className="ml-1 font-semibold text-white">
+                {editsRemaining}/1
+              </span>
             </div>
 
             <div className="mt-5 rounded-xl bg-white p-4">
@@ -176,11 +229,11 @@ export default async function QrProjectPage({
             </div>
           </section>
 
-          {/* Settings card */}
           <section className="lg:col-span-3 rounded-2xl border border-white/10 bg-white/5 p-6">
             <div className="text-sm font-semibold">Project settings</div>
             <div className="mt-1 text-xs text-white/60">
-              Simple inputs. Locked templates. Scanner-safe output.
+              Locked templates. Scanner-safe output. One edit per project
+              (lifetime).
             </div>
 
             <form
@@ -195,7 +248,8 @@ export default async function QrProjectPage({
                   name="business_name"
                   required
                   defaultValue={project.business_name}
-                  className="mt-2 w-full rounded-md border border-white/10 bg-black/30 px-3 py-2 text-sm text-white placeholder:text-white/30 outline-none focus:border-white/25"
+                  disabled={isLocked}
+                  className="mt-2 w-full rounded-md border border-white/10 bg-black/30 px-3 py-2 text-sm text-white placeholder:text-white/30 outline-none focus:border-white/25 disabled:opacity-60"
                 />
               </div>
 
@@ -206,7 +260,8 @@ export default async function QrProjectPage({
                 <input
                   name="tagline"
                   defaultValue={project.tagline ?? ""}
-                  className="mt-2 w-full rounded-md border border-white/10 bg-black/30 px-3 py-2 text-sm text-white placeholder:text-white/30 outline-none focus:border-white/25"
+                  disabled={isLocked}
+                  className="mt-2 w-full rounded-md border border-white/10 bg-black/30 px-3 py-2 text-sm text-white placeholder:text-white/30 outline-none focus:border-white/25 disabled:opacity-60"
                 />
                 {template?.allowText ? (
                   <div className="mt-2 text-xs text-white/60">
@@ -222,7 +277,8 @@ export default async function QrProjectPage({
                   name="url"
                   required
                   defaultValue={project.url}
-                  className="mt-2 w-full rounded-md border border-white/10 bg-black/30 px-3 py-2 text-sm text-white placeholder:text-white/30 outline-none focus:border-white/25"
+                  disabled={isLocked}
+                  className="mt-2 w-full rounded-md border border-white/10 bg-black/30 px-3 py-2 text-sm text-white placeholder:text-white/30 outline-none focus:border-white/25 disabled:opacity-60"
                 />
                 <div className="mt-2 text-xs text-white/60">
                   If you enter a domain without https://, it will normalize to
@@ -237,7 +293,8 @@ export default async function QrProjectPage({
                 <select
                   name="template_id"
                   defaultValue={project.template_id}
-                  className="mt-2 w-full rounded-md border border-white/10 bg-black/30 px-3 py-2 text-sm text-white outline-none focus:border-white/25"
+                  disabled={isLocked}
+                  className="mt-2 w-full rounded-md border border-white/10 bg-black/30 px-3 py-2 text-sm text-white outline-none focus:border-white/25 disabled:opacity-60"
                 >
                   <option value="T1">T1 — Clean</option>
                   <option value="T2">T2 — Clean + Label</option>
@@ -246,13 +303,15 @@ export default async function QrProjectPage({
               </div>
 
               <div className="md:col-span-2 flex justify-end">
-                <button className="rounded-md bg-[#2563EB] px-4 py-2 text-sm font-semibold text-white hover:opacity-95">
+                <button
+                  disabled={isLocked}
+                  className="rounded-md bg-[#2563EB] px-4 py-2 text-sm font-semibold text-white hover:opacity-95 disabled:opacity-60"
+                >
                   Save changes
                 </button>
               </div>
             </form>
 
-            {/* Logo upload */}
             <div className="mt-8 rounded-2xl border border-white/10 bg-black/20 p-5">
               <div className="flex items-center justify-between">
                 <div>

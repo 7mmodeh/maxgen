@@ -1,4 +1,3 @@
-// app/qr-studio/page.tsx
 import Link from "next/link";
 import QRCode from "qrcode";
 import { supabaseServer } from "@/src/lib/supabase/server";
@@ -17,7 +16,6 @@ async function demoSvg(value: string): Promise<string> {
     width: 240,
   });
 
-  // Responsive SVG (avoid fixed width/height overflow)
   return svg
     .replace(/width="[^"]*"/g, "")
     .replace(/height="[^"]*"/g, "")
@@ -40,7 +38,6 @@ export default async function QrStudioLandingPage() {
   return (
     <main className="min-h-screen bg-[#0B1220] text-white">
       <div className="mx-auto w-full max-w-6xl px-6 py-12">
-        {/* Top bar */}
         <div className="flex items-center justify-between">
           <div>
             <div className="text-sm font-semibold">MaxGen Systems</div>
@@ -65,7 +62,6 @@ export default async function QrStudioLandingPage() {
           </div>
         </div>
 
-        {/* Hero */}
         <section className="mt-10 grid gap-8 lg:grid-cols-2 lg:items-center">
           <div>
             <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/80">
@@ -121,7 +117,6 @@ export default async function QrStudioLandingPage() {
             </div>
           </div>
 
-          {/* Template previews */}
           <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
             <div className="flex items-center justify-between">
               <div className="text-sm font-semibold">Templates (examples)</div>
@@ -148,7 +143,9 @@ export default async function QrStudioLandingPage() {
                   />
                 </div>
                 <div className="mt-3 text-sm font-semibold">T2</div>
-                <div className="mt-1 text-xs text-white/60">Clean + label</div>
+                <div className="mt-1 text-xs text-white/60">
+                  Clean + label (UI preview only in v1)
+                </div>
               </div>
 
               <div className="rounded-xl border border-white/10 bg-black/20 p-4">
@@ -172,7 +169,7 @@ export default async function QrStudioLandingPage() {
                 </div>
                 <div>
                   <span className="font-semibold text-white">2)</span> Add your
-                  link + optional logo
+                  link + optional logo (not allowed in T3)
                 </div>
                 <div>
                   <span className="font-semibold text-white">3)</span> Download
@@ -183,7 +180,6 @@ export default async function QrStudioLandingPage() {
           </div>
         </section>
 
-        {/* Pricing */}
         <section id="pricing" className="mt-14">
           <div className="flex items-end justify-between gap-4">
             <div>
@@ -202,12 +198,55 @@ export default async function QrStudioLandingPage() {
             ) : null}
           </div>
 
-          <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-6">
-            <QrCheckoutButtons />
+          {/* Explicit rules (no ambiguity) */}
+          <div className="mt-6 grid gap-4 lg:grid-cols-3">
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-6 lg:col-span-2">
+              <div className="text-sm font-semibold">
+                Rules & limits (read before purchase)
+              </div>
+              <ul className="mt-3 space-y-2 text-sm text-white/70">
+                <li>
+                  <span className="font-semibold text-white">
+                    One-time (€9):
+                  </span>{" "}
+                  1 QR project total (lifetime). Deleting does not restore it.
+                </li>
+                <li>
+                  <span className="font-semibold text-white">
+                    Monthly (€7/month):
+                  </span>{" "}
+                  up to 5 new projects per rolling 7 days, and up to 20 per
+                  rolling 30 days.
+                </li>
+                <li>
+                  <span className="font-semibold text-white">Edits:</span> each
+                  project can be edited once (lifetime). After that, it locks
+                  (downloads still work).
+                </li>
+                <li>
+                  <span className="font-semibold text-white">Templates:</span>{" "}
+                  T1–T3 only. No custom shapes, colors, or analytics.
+                </li>
+                <li>
+                  <span className="font-semibold text-white">Output:</span> PNG
+                  1024×1024 + clean SVG. Static only.
+                </li>
+              </ul>
+            </div>
+
+            <div className="rounded-2xl border border-white/10 bg-black/30 p-6">
+              <div className="text-sm font-semibold">Checkout</div>
+              <div className="mt-2 text-xs text-white/60">
+                Purchase unlocks access via server-side entitlements. Limits are
+                enforced automatically.
+              </div>
+              <div className="mt-4">
+                <QrCheckoutButtons />
+              </div>
+            </div>
           </div>
         </section>
 
-        {/* Footer */}
         <section className="mt-14 rounded-2xl border border-white/10 bg-black/30 p-8">
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>

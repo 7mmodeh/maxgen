@@ -1,4 +1,3 @@
-// app/qr-studio/new/page.tsx
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { supabaseServer } from "@/src/lib/supabase/server";
@@ -8,6 +7,22 @@ import { TEMPLATE_VERSION_V1 } from "@/src/lib/qr/templates";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
+
+function mapRpcErrorToQuery(code: string): string {
+  // we use exception messages as stable codes
+  switch (code) {
+    case "onetime_limit_reached":
+      return "onetime_limit_reached";
+    case "weekly_limit_reached":
+      return "weekly_limit_reached";
+    case "monthly_limit_reached":
+      return "monthly_limit_reached";
+    case "no_entitlement":
+      return "no_entitlement";
+    default:
+      return "create_failed";
+  }
+}
 
 async function createProject(formData: FormData) {
   "use server";
@@ -24,33 +39,29 @@ async function createProject(formData: FormData) {
   const url = String(formData.get("url") ?? "").trim();
   const template_id = String(formData.get("template_id") ?? "").trim();
   const taglineRaw = String(formData.get("tagline") ?? "").trim();
-  const tagline = taglineRaw.length ? taglineRaw : null;
+  const tagline = taglineRaw.length ? taglineRaw : "";
 
   if (!business_name) throw new Error("Missing business_name");
   if (!url) throw new Error("Missing url");
   if (!["T1", "T2", "T3"].includes(template_id))
     throw new Error("Invalid template");
 
-  const { data: created, error } = await sb
-    .from("qr_projects")
-    .insert({
-      user_id: user.id,
-      business_name,
-      tagline,
-      url,
-      template_id,
-      template_version: TEMPLATE_VERSION_V1,
-      logo_path: null,
-    })
-    .select("id")
-    .single();
+  const { data: projectId, error } = await sb.rpc("qr_create_project", {
+    p_business_name: business_name,
+    p_tagline: tagline,
+    p_url: url,
+    p_template_id: template_id,
+    p_template_version: TEMPLATE_VERSION_V1,
+  });
 
-  if (error) {
-    console.error("[qr create] error:", error);
-    throw new Error("Failed to create project");
+  if (error || !projectId) {
+    console.error("[qr create rpc] error:", error);
+    const msg = String((error as { message?: unknown } | null)?.message ?? "");
+    const code = mapRpcErrorToQuery(msg);
+    redirect(`/qr-studio/dashboard?error=${encodeURIComponent(code)}`);
   }
 
-  redirect(`/qr-studio/${created.id}`);
+  redirect(`/qr-studio/${projectId}`);
 }
 
 export default async function NewQrProjectPage() {
