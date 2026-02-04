@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { supabaseServer } from "@/src/lib/supabase/server";
 import { hasQrStudioEntitlement } from "@/src/lib/qr/entitlement";
 import { TEMPLATE_VERSION_V1 } from "@/src/lib/qr/templates";
@@ -8,20 +8,11 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-function mapRpcErrorToQuery(code: string): string {
-  // we use exception messages as stable codes
-  switch (code) {
-    case "onetime_limit_reached":
-      return "onetime_limit_reached";
-    case "weekly_limit_reached":
-      return "weekly_limit_reached";
-    case "monthly_limit_reached":
-      return "monthly_limit_reached";
-    case "no_entitlement":
-      return "no_entitlement";
-    default:
-      return "create_failed";
-  }
+function normalizeUrl(input: string): string {
+  const v = input.trim();
+  if (!v) return v;
+  if (/^https?:\/\//i.test(v)) return v;
+  return `https://${v}`;
 }
 
 async function createProject(formData: FormData) {
@@ -33,35 +24,40 @@ async function createProject(formData: FormData) {
   if (!user) redirect("/login");
 
   const entitled = await hasQrStudioEntitlement(user.id);
-  if (!entitled) redirect("/qr-studio");
+  if (!entitled) redirect("/qr-studio#pricing");
 
   const business_name = String(formData.get("business_name") ?? "").trim();
-  const url = String(formData.get("url") ?? "").trim();
+  const urlRaw = String(formData.get("url") ?? "").trim();
+  const url = normalizeUrl(urlRaw);
   const template_id = String(formData.get("template_id") ?? "").trim();
   const taglineRaw = String(formData.get("tagline") ?? "").trim();
-  const tagline = taglineRaw.length ? taglineRaw : "";
+  const tagline = taglineRaw.length ? taglineRaw : null;
 
   if (!business_name) throw new Error("Missing business_name");
   if (!url) throw new Error("Missing url");
   if (!["T1", "T2", "T3"].includes(template_id))
     throw new Error("Invalid template");
 
-  const { data: projectId, error } = await sb.rpc("qr_create_project", {
-    p_business_name: business_name,
-    p_tagline: tagline,
-    p_url: url,
-    p_template_id: template_id,
-    p_template_version: TEMPLATE_VERSION_V1,
-  });
+  const { data: created, error } = await sb
+    .from("qr_projects")
+    .insert({
+      user_id: user.id,
+      business_name,
+      tagline,
+      url,
+      template_id,
+      template_version: TEMPLATE_VERSION_V1,
+      logo_path: null,
+    })
+    .select("id")
+    .single();
 
-  if (error || !projectId) {
-    console.error("[qr create rpc] error:", error);
-    const msg = String((error as { message?: unknown } | null)?.message ?? "");
-    const code = mapRpcErrorToQuery(msg);
-    redirect(`/qr-studio/dashboard?error=${encodeURIComponent(code)}`);
+  if (error) {
+    console.error("[qr create] error:", error);
+    throw new Error("Failed to create project");
   }
 
-  redirect(`/qr-studio/${projectId}`);
+  redirect(`/qr-studio/${created.id}`);
 }
 
 export default async function NewQrProjectPage() {
@@ -72,74 +68,161 @@ export default async function NewQrProjectPage() {
   if (!user) redirect("/login");
 
   const entitled = await hasQrStudioEntitlement(user.id);
-  if (!entitled) redirect("/qr-studio");
+  if (!entitled) redirect("/qr-studio#pricing");
 
   return (
-    <main className="mx-auto w-full max-w-3xl px-6 py-10">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Create QR Project</h1>
-        <Link
-          href="/qr-studio"
-          className="text-sm text-neutral-600 hover:underline"
-        >
-          Back
-        </Link>
+    <main className="min-h-screen bg-[#0B1220] text-white">
+      <div className="mx-auto w-full max-w-6xl px-6 py-10">
+        {/* Header */}
+        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+          <div>
+            <div className="text-xs text-white/60">Maxgen QR Studio</div>
+            <h1 className="mt-1 text-2xl font-semibold">Create QR Project</h1>
+            <p className="mt-2 text-sm text-white/70">
+              Locked templates. Scanner-safe output. No design sliders.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <Link
+              href="/qr-studio/dashboard"
+              className="rounded-md border border-white/15 bg-white/5 px-4 py-2 text-sm font-medium hover:bg-white/10"
+            >
+              Back to dashboard
+            </Link>
+          </div>
+        </div>
+
+        {/* Layout */}
+        <div className="mt-8 grid gap-6 lg:grid-cols-3">
+          {/* Form card */}
+          <section className="lg:col-span-2 rounded-2xl border border-white/10 bg-white/5 p-6">
+            <div className="text-sm font-semibold">Project details</div>
+            <div className="mt-1 text-xs text-white/60">
+              You can edit a project once (lifetime). After that, it locks.
+            </div>
+
+            <form
+              action={createProject}
+              className="mt-6 grid gap-4 md:grid-cols-2"
+            >
+              <div className="md:col-span-2">
+                <label className="text-xs font-medium text-white/70">
+                  Business name
+                </label>
+                <input
+                  name="business_name"
+                  required
+                  className="mt-2 w-full rounded-md border border-white/10 bg-black/30 px-3 py-2 text-sm text-white placeholder:text-white/30 outline-none focus:border-white/25"
+                  placeholder="Maxgen Systems Ltd"
+                  autoComplete="organization"
+                />
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="text-xs font-medium text-white/70">URL</label>
+                <input
+                  name="url"
+                  required
+                  className="mt-2 w-full rounded-md border border-white/10 bg-black/30 px-3 py-2 text-sm text-white placeholder:text-white/30 outline-none focus:border-white/25"
+                  placeholder="https://maxgensys.com"
+                  autoComplete="url"
+                />
+                <div className="mt-2 text-xs text-white/60">
+                  If you enter a domain without https://, it will normalize to
+                  https:// automatically.
+                </div>
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="text-xs font-medium text-white/70">
+                  Template
+                </label>
+                <select
+                  name="template_id"
+                  defaultValue="T1"
+                  className="mt-2 w-full rounded-md border border-white/10 bg-black/30 px-3 py-2 text-sm text-white outline-none focus:border-white/25"
+                >
+                  <option value="T1">T1 — Clean (QR only)</option>
+                  <option value="T2">T2 — Clean + label (name/tagline)</option>
+                  <option value="T3">T3 — Scan-max (no logo)</option>
+                </select>
+                <div className="mt-2 text-xs text-white/60">
+                  Templates are locked: no custom shapes, colors, analytics, or
+                  redirects.
+                </div>
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="text-xs font-medium text-white/70">
+                  Tagline (optional)
+                </label>
+                <input
+                  name="tagline"
+                  className="mt-2 w-full rounded-md border border-white/10 bg-black/30 px-3 py-2 text-sm text-white placeholder:text-white/30 outline-none focus:border-white/25"
+                  placeholder="Modern. Global. Systems."
+                />
+                <div className="mt-2 text-xs text-white/60">
+                  Tagline is displayed in{" "}
+                  <span className="text-white/80">T2</span> only. T1/T3 do not
+                  render text.
+                </div>
+              </div>
+
+              <div className="md:col-span-2 flex items-center justify-end gap-3 pt-2">
+                <Link
+                  href="/qr-studio/dashboard"
+                  className="rounded-md border border-white/15 bg-white/5 px-4 py-2 text-sm font-medium hover:bg-white/10"
+                >
+                  Cancel
+                </Link>
+                <button className="rounded-md bg-[#2563EB] px-4 py-2 text-sm font-semibold text-white hover:opacity-95">
+                  Create project
+                </button>
+              </div>
+            </form>
+          </section>
+
+          {/* Rules side card */}
+          <aside className="rounded-2xl border border-white/10 bg-black/30 p-6">
+            <div className="text-sm font-semibold">Rules (clear)</div>
+            <ul className="mt-3 space-y-2 text-sm text-white/70">
+              <li>
+                <span className="font-semibold text-white">Static only:</span>{" "}
+                no redirects, no analytics, no tracking.
+              </li>
+              <li>
+                <span className="font-semibold text-white">Safety:</span> ECC H
+                + enforced quiet zone.
+              </li>
+              <li>
+                <span className="font-semibold text-white">Logos:</span> allowed
+                on T1/T2 only (≤22%). Not allowed on T3.
+              </li>
+              <li>
+                <span className="font-semibold text-white">Edit limit:</span> 1
+                edit per project (lifetime), then locked.
+              </li>
+              <li>
+                <span className="font-semibold text-white">Delete:</span>{" "}
+                allowed, does not restore allowance.
+              </li>
+              <li>
+                <span className="font-semibold text-white">Export:</span> PNG
+                1024×1024 + clean SVG.
+              </li>
+            </ul>
+
+            <div className="mt-6 rounded-xl border border-white/10 bg-white/5 p-4">
+              <div className="text-sm font-semibold">Tip</div>
+              <div className="mt-2 text-sm text-white/70">
+                For maximum trust, use your official business name and a short,
+                readable link (homepage or booking page).
+              </div>
+            </div>
+          </aside>
+        </div>
       </div>
-
-      <form
-        action={createProject}
-        className="mt-6 space-y-4 rounded-xl border border-neutral-200 bg-white p-6"
-      >
-        <div>
-          <label className="text-sm font-medium">Business name</label>
-          <input
-            name="business_name"
-            required
-            className="mt-1 w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
-            placeholder="Maxgen Systems Ltd"
-          />
-        </div>
-
-        <div>
-          <label className="text-sm font-medium">Tagline (optional)</label>
-          <input
-            name="tagline"
-            className="mt-1 w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
-            placeholder="Modern. Global. Systems."
-          />
-        </div>
-
-        <div>
-          <label className="text-sm font-medium">URL</label>
-          <input
-            name="url"
-            required
-            className="mt-1 w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
-            placeholder="https://maxgensys.com"
-          />
-          <p className="mt-1 text-xs text-neutral-500">
-            If you enter a domain without https://, the renderer will normalize
-            to https:// for safety.
-          </p>
-        </div>
-
-        <div>
-          <label className="text-sm font-medium">Template</label>
-          <select
-            name="template_id"
-            defaultValue="T1"
-            className="mt-1 w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
-          >
-            <option value="T1">T1 — Clean</option>
-            <option value="T2">T2 — Clean + Label</option>
-            <option value="T3">T3 — Scan-max</option>
-          </select>
-        </div>
-
-        <button className="rounded-md bg-black px-4 py-2 text-sm font-medium text-white">
-          Create
-        </button>
-      </form>
     </main>
   );
 }
