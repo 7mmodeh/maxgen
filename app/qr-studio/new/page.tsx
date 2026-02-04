@@ -8,11 +8,53 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
+type SearchParams = Record<string, string | string[] | undefined>;
+
+function first(sp: SearchParams, key: string): string | null {
+  const v = sp[key];
+  if (!v) return null;
+  return Array.isArray(v) ? (v[0] ?? null) : v;
+}
+
 function normalizeUrl(input: string): string {
   const v = input.trim();
   if (!v) return v;
   if (/^https?:\/\//i.test(v)) return v;
   return `https://${v}`;
+}
+
+function extFromMime(mime: string): "png" | "jpg" | "webp" | "svg" | null {
+  switch (mime) {
+    case "image/png":
+      return "png";
+    case "image/jpeg":
+      return "jpg";
+    case "image/webp":
+      return "webp";
+    case "image/svg+xml":
+      return "svg";
+    default:
+      return null;
+  }
+}
+
+function errorMessage(code: string | null): string | null {
+  switch (code) {
+    case "missing_business_name":
+      return "Business name is required.";
+    case "missing_url":
+      return "URL is required.";
+    case "invalid_template":
+      return "Invalid template. Please select T1, T2, or T3.";
+    case "create_failed":
+      return "Failed to create project. Please try again.";
+    case "logo_not_allowed_t3":
+      return "Logo is not allowed on template T3 (Scan-max). Choose T1 or T2.";
+    case "logo_type_invalid":
+      return "Logo type not supported. Use PNG, JPG, WEBP, or SVG.";
+    default:
+      return null;
+  }
 }
 
 async function createProject(formData: FormData) {
@@ -33,11 +75,22 @@ async function createProject(formData: FormData) {
   const taglineRaw = String(formData.get("tagline") ?? "").trim();
   const tagline = taglineRaw.length ? taglineRaw : null;
 
-  if (!business_name) throw new Error("Missing business_name");
-  if (!url) throw new Error("Missing url");
+  if (!business_name) redirect("/qr-studio/new?error=missing_business_name");
+  if (!url) redirect("/qr-studio/new?error=missing_url");
   if (!["T1", "T2", "T3"].includes(template_id))
-    throw new Error("Invalid template");
+    redirect("/qr-studio/new?error=invalid_template");
 
+  // Optional logo upload at creation time
+  const maybeLogo = formData.get("logo");
+  const logo =
+    maybeLogo instanceof File && maybeLogo.size > 0 ? maybeLogo : null;
+
+  if (logo && template_id === "T3") {
+    // Policy: T3 does not allow logo
+    redirect("/qr-studio/new?error=logo_not_allowed_t3");
+  }
+
+  // Create the project first
   const { data: created, error } = await sb
     .from("qr_projects")
     .insert({
@@ -52,15 +105,60 @@ async function createProject(formData: FormData) {
     .select("id")
     .single();
 
-  if (error) {
+  if (error || !created?.id) {
     console.error("[qr create] error:", error);
-    throw new Error("Failed to create project");
+    redirect("/qr-studio/new?error=create_failed");
   }
 
-  redirect(`/qr-studio/${created.id}`);
+  const projectId = created.id as string;
+
+  // Upload logo if provided
+  if (logo) {
+    const ext = extFromMime(logo.type);
+    if (!ext) {
+      redirect("/qr-studio/new?error=logo_type_invalid");
+    }
+
+    const objectPath = `logos/${user.id}/${projectId}.${ext}`;
+    const bucket = sb.storage.from("qr-logos");
+
+    const { error: upErr } = await bucket.upload(objectPath, logo, {
+      contentType: logo.type,
+      cacheControl: "3600",
+    });
+
+    if (upErr) {
+      console.error("[qr create] logo upload error:", upErr);
+      // Non-blocking: project exists, user can upload later
+      redirect(`/qr-studio/${projectId}?upload=error&reason=upload_failed`);
+    }
+
+    const { error: updErr } = await sb
+      .from("qr_projects")
+      .update({ logo_path: objectPath })
+      .eq("id", projectId);
+
+    if (updErr) {
+      console.error("[qr create] logo_path update error:", updErr);
+      // Non-blocking: project exists, but logo_path failed to set
+      redirect(`/qr-studio/${projectId}?upload=error&reason=logo_path_failed`);
+    }
+
+    redirect(`/qr-studio/${projectId}?upload=ok`);
+  }
+
+  redirect(`/qr-studio/${projectId}`);
 }
 
-export default async function NewQrProjectPage() {
+export default async function NewQrProjectPage({
+  searchParams,
+}: {
+  searchParams: Promise<SearchParams>;
+}) {
+  const sp = await searchParams;
+  const errCode = first(sp, "error");
+  const errMsg = errorMessage(errCode);
+
   const sb = await supabaseServer();
   const { data } = await sb.auth.getUser();
   const user = data.user;
@@ -93,6 +191,12 @@ export default async function NewQrProjectPage() {
           </div>
         </div>
 
+        {errMsg ? (
+          <div className="mt-6 rounded-2xl border border-rose-400/20 bg-rose-400/10 p-4 text-sm text-rose-100">
+            {errMsg}
+          </div>
+        ) : null}
+
         {/* Layout */}
         <div className="mt-8 grid gap-6 lg:grid-cols-3">
           {/* Form card */}
@@ -104,6 +208,7 @@ export default async function NewQrProjectPage() {
 
             <form
               action={createProject}
+              encType="multipart/form-data"
               className="mt-6 grid gap-4 md:grid-cols-2"
             >
               <div className="md:col-span-2">
@@ -149,7 +254,7 @@ export default async function NewQrProjectPage() {
                 </select>
                 <div className="mt-2 text-xs text-white/60">
                   Templates are locked: no custom shapes, colors, analytics, or
-                  redirects.
+                  redirects. T3 does not allow logos.
                 </div>
               </div>
 
@@ -166,6 +271,22 @@ export default async function NewQrProjectPage() {
                   Tagline is displayed in{" "}
                   <span className="text-white/80">T2</span> only. T1/T3 do not
                   render text.
+                </div>
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="text-xs font-medium text-white/70">
+                  Logo (optional)
+                </label>
+                <input
+                  name="logo"
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                  className="mt-2 w-full text-sm text-white/80 file:mr-3 file:rounded-md file:border-0 file:bg-white/10 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-white/15"
+                />
+                <div className="mt-2 text-xs text-white/60">
+                  Recommended: square PNG with padding. For best scan
+                  reliability, keep it simple. (Not allowed on T3.)
                 </div>
               </div>
 
