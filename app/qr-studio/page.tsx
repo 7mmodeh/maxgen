@@ -143,9 +143,7 @@ export default async function QrStudioLandingPage() {
                   />
                 </div>
                 <div className="mt-3 text-sm font-semibold">T2</div>
-                <div className="mt-1 text-xs text-white/60">
-                  Clean + label (UI preview only in v1)
-                </div>
+                <div className="mt-1 text-xs text-white/60">Clean + label</div>
               </div>
 
               <div className="rounded-xl border border-white/10 bg-black/20 p-4">
@@ -169,7 +167,7 @@ export default async function QrStudioLandingPage() {
                 </div>
                 <div>
                   <span className="font-semibold text-white">2)</span> Add your
-                  link + optional logo (not allowed in T3)
+                  link + optional logo (not allowed on T3)
                 </div>
                 <div>
                   <span className="font-semibold text-white">3)</span> Download
@@ -180,6 +178,7 @@ export default async function QrStudioLandingPage() {
           </div>
         </section>
 
+        {/* Pricing */}
         <section id="pricing" className="mt-14">
           <div className="flex items-end justify-between gap-4">
             <div>
@@ -198,9 +197,9 @@ export default async function QrStudioLandingPage() {
             ) : null}
           </div>
 
-          {/* Explicit rules (no ambiguity) */}
-          <div className="mt-6 grid gap-4 lg:grid-cols-3">
-            <div className="rounded-2xl border border-white/10 bg-white/5 p-6 lg:col-span-2">
+          {/* FIXED LAYOUT: stable checkout width on desktop; stacks nicely on smaller screens */}
+          <div className="mt-6 grid gap-4 lg:[grid-template-columns:1fr_420px] xl:[grid-template-columns:1fr_460px]">
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
               <div className="text-sm font-semibold">
                 Rules & limits (read before purchase)
               </div>
@@ -240,6 +239,8 @@ export default async function QrStudioLandingPage() {
                 Purchase unlocks access via server-side entitlements. Limits are
                 enforced automatically.
               </div>
+
+              {/* Let checkout breathe */}
               <div className="mt-4">
                 <QrCheckoutButtons />
               </div>
@@ -247,6 +248,7 @@ export default async function QrStudioLandingPage() {
           </div>
         </section>
 
+        {/* Footer */}
         <section className="mt-14 rounded-2xl border border-white/10 bg-black/30 p-8">
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>

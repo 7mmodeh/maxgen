@@ -45,6 +45,28 @@ function planLabel(plan: QrStudioPlan): string {
   return plan === "monthly" ? "Monthly (€7/month)" : "One-time (€9)";
 }
 
+async function deleteProject(formData: FormData) {
+  "use server";
+
+  const projectId = String(formData.get("project_id") ?? "").trim();
+  if (!projectId) redirect("/qr-studio/dashboard?delete=error");
+
+  const sb = await supabaseServer();
+  const { data } = await sb.auth.getUser();
+  const user = data.user;
+  if (!user) redirect("/login");
+
+  // Delete is allowed by RLS (user_id = auth.uid())
+  const { error } = await sb.from("qr_projects").delete().eq("id", projectId);
+
+  if (error) {
+    console.error("[qr delete] error:", error);
+    redirect("/qr-studio/dashboard?delete=error");
+  }
+
+  redirect("/qr-studio/dashboard?delete=ok");
+}
+
 export default async function QrStudioDashboardPage({
   searchParams,
 }: {
@@ -62,10 +84,8 @@ export default async function QrStudioDashboardPage({
   if (!entitled) redirect("/qr-studio#pricing");
 
   const plan = await getQrStudioPlan(user.id);
-  // If entitlement exists but plan is missing for any reason, we fail safely.
   if (!plan) redirect("/qr-studio#pricing");
 
-  // Usage counts (rolling windows)
   const sevenDaysAgo = isoDaysAgo(7);
   const thirtyDaysAgo = isoDaysAgo(30);
 
@@ -94,7 +114,6 @@ export default async function QrStudioDashboardPage({
   const c7 = created7 ?? 0;
   const c30 = created30 ?? 0;
 
-  // Can create logic (matches RPC rules)
   let canCreate = true;
   let createReason: string | null = null;
 
@@ -123,6 +142,10 @@ export default async function QrStudioDashboardPage({
 
   const errCode = first(sp, "error");
   const errMsg = errorMessage(errCode);
+
+  const del = first(sp, "delete");
+  const deleteOk = del === "ok";
+  const deleteErr = del === "error";
 
   return (
     <main className="min-h-screen bg-[#0B1220] text-white">
@@ -169,15 +192,25 @@ export default async function QrStudioDashboardPage({
           </div>
         ) : null}
 
-        {/* Rules + quotas */}
+        {deleteOk ? (
+          <div className="mt-6 rounded-2xl border border-emerald-400/20 bg-emerald-400/10 p-4 text-sm text-emerald-100">
+            Project deleted. (Deletion does not restore creation allowance.)
+          </div>
+        ) : null}
+
+        {deleteErr ? (
+          <div className="mt-6 rounded-2xl border border-rose-400/20 bg-rose-400/10 p-4 text-sm text-rose-100">
+            Delete failed. Please try again.
+          </div>
+        ) : null}
+
         <section className="mt-8 grid gap-6 lg:grid-cols-3">
           <div className="rounded-2xl border border-white/10 bg-white/5 p-6 lg:col-span-2">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <div className="text-sm font-semibold">Your access</div>
                 <div className="mt-1 text-xs text-white/60">
-                  Plan is derived from server-side entitlements (Stripe is
-                  source of truth in production).
+                  Plan is derived from server-side entitlements.
                 </div>
               </div>
               <div className="rounded-full border border-white/10 bg-black/20 px-3 py-1 text-xs text-white/80">
@@ -216,8 +249,7 @@ export default async function QrStudioDashboardPage({
                 </div>
                 <div className="mt-1 text-lg font-semibold">{`${cAll} / 1`}</div>
                 <div className="mt-1 text-xs text-white/60">
-                  Applies only to the one-time plan. Deleting a project does not
-                  restore this.
+                  Applies only to one-time plan. Deleting does not restore it.
                 </div>
               </div>
             </div>
@@ -230,39 +262,24 @@ export default async function QrStudioDashboardPage({
           </div>
 
           <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
-            <div className="text-sm font-semibold">Rules (non-negotiable)</div>
+            <div className="text-sm font-semibold">Rules</div>
             <ul className="mt-3 space-y-2 text-sm text-white/70">
               <li>
-                <span className="font-semibold text-white">
-                  Static QR only:
-                </span>{" "}
-                no redirects, no analytics, no tracking.
-              </li>
-              <li>
-                <span className="font-semibold text-white">Templates:</span>{" "}
-                T1–T3 only.
-              </li>
-              <li>
-                <span className="font-semibold text-white">Edits:</span> each
-                project can be edited{" "}
-                <span className="font-semibold text-white">once</span>{" "}
-                (lifetime). After that it locks.
+                <span className="font-semibold text-white">Edits:</span> 1 edit
+                per project (lifetime).
               </li>
               <li>
                 <span className="font-semibold text-white">Delete:</span>{" "}
-                allowed for all users, but{" "}
-                <span className="font-semibold text-white">does not</span>{" "}
-                restore creation allowance.
+                allowed, does not restore allowance.
               </li>
               <li>
-                <span className="font-semibold text-white">Exports:</span> PNG
-                1024×1024 + clean SVG.
+                <span className="font-semibold text-white">Output:</span> PNG
+                1024 + clean SVG.
               </li>
             </ul>
           </div>
         </section>
 
-        {/* Projects */}
         <section className="mt-8 rounded-2xl border border-white/10 bg-white/5 p-6">
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-semibold">Your projects</h2>
@@ -273,25 +290,45 @@ export default async function QrStudioDashboardPage({
 
           <div className="mt-4 grid gap-3">
             {(projects ?? []).map((p) => (
-              <Link
+              <div
                 key={p.id}
-                href={`/qr-studio/${p.id}`}
-                className="rounded-xl border border-white/10 bg-black/20 p-4 hover:bg-black/30"
+                className="rounded-xl border border-white/10 bg-black/20 p-4"
               >
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <div className="text-sm font-semibold">
-                      {p.business_name}
-                    </div>
-                    <div className="mt-1 text-xs text-white/60 break-all">
-                      {p.url}
-                    </div>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="min-w-0">
+                    <Link href={`/qr-studio/${p.id}`} className="block">
+                      <div className="text-sm font-semibold hover:underline">
+                        {p.business_name}
+                      </div>
+                      <div className="mt-1 text-xs text-white/60 break-all">
+                        {p.url}
+                      </div>
+                      <div className="mt-2 text-xs text-white/60">
+                        {p.template_id} v{p.template_version}
+                      </div>
+                    </Link>
                   </div>
-                  <div className="text-xs text-white/60">
-                    {p.template_id} v{p.template_version}
+
+                  <div className="flex shrink-0 items-center gap-2">
+                    <Link
+                      href={`/qr-studio/${p.id}`}
+                      className="rounded-md border border-white/15 bg-white/5 px-3 py-2 text-xs font-medium hover:bg-white/10"
+                    >
+                      Open
+                    </Link>
+
+                    <form action={deleteProject}>
+                      <input type="hidden" name="project_id" value={p.id} />
+                      <button
+                        className="rounded-md border border-rose-400/30 bg-rose-400/10 px-3 py-2 text-xs font-semibold text-rose-100 hover:bg-rose-400/15"
+                        type="submit"
+                      >
+                        Delete
+                      </button>
+                    </form>
                   </div>
                 </div>
-              </Link>
+              </div>
             ))}
           </div>
 
