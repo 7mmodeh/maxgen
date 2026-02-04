@@ -1,7 +1,11 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { supabaseServer } from "@/src/lib/supabase/server";
-import { hasQrStudioEntitlement } from "@/src/lib/qr/entitlement";
+import {
+  getQrStudioPlan,
+  hasQrStudioEntitlement,
+  type QrStudioPlan,
+} from "@/src/lib/qr/entitlement";
 import { TEMPLATE_VERSION_V1 } from "@/src/lib/qr/templates";
 
 export const runtime = "nodejs";
@@ -14,6 +18,11 @@ function first(sp: SearchParams, key: string): string | null {
   const v = sp[key];
   if (!v) return null;
   return Array.isArray(v) ? (v[0] ?? null) : v;
+}
+
+function isoDaysAgo(days: number): string {
+  const ms = days * 24 * 60 * 60 * 1000;
+  return new Date(Date.now() - ms).toISOString();
 }
 
 function normalizeUrl(input: string): string {
@@ -65,8 +74,13 @@ async function createProject(formData: FormData) {
   const user = data.user;
   if (!user) redirect("/login");
 
+  // Entitlement gate (existing)
   const entitled = await hasQrStudioEntitlement(user.id);
-  if (!entitled) redirect("/qr-studio#pricing");
+  if (!entitled) redirect("/qr-studio/dashboard?error=no_entitlement");
+
+  // Plan (monthly vs onetime) is authoritative for quotas
+  const plan = (await getQrStudioPlan(user.id)) as QrStudioPlan | null;
+  if (!plan) redirect("/qr-studio/dashboard?error=no_entitlement");
 
   const business_name = String(formData.get("business_name") ?? "").trim();
   const urlRaw = String(formData.get("url") ?? "").trim();
@@ -85,12 +99,62 @@ async function createProject(formData: FormData) {
   const logo =
     maybeLogo instanceof File && maybeLogo.size > 0 ? maybeLogo : null;
 
-  if (logo && template_id === "T3") {
-    // Policy: T3 does not allow logo
-    redirect("/qr-studio/new?error=logo_not_allowed_t3");
+  // Validate logo constraints BEFORE we create the project (to avoid phantom projects)
+  let logoExt: "png" | "jpg" | "webp" | "svg" | null = null;
+
+  if (logo) {
+    if (template_id === "T3") {
+      redirect("/qr-studio/new?error=logo_not_allowed_t3");
+    }
+    logoExt = extFromMime(logo.type);
+    if (!logoExt) {
+      redirect("/qr-studio/new?error=logo_type_invalid");
+    }
   }
 
-  // Create the project first
+  // Quota enforcement (authoritative)
+  const sevenDaysAgo = isoDaysAgo(7);
+  const thirtyDaysAgo = isoDaysAgo(30);
+
+  const [{ count: createdAll }, { count: created7 }, { count: created30 }] =
+    await Promise.all([
+      sb
+        .from("qr_usage_events")
+        .select("*", { count: "exact", head: true })
+        .eq("user_id", user.id)
+        .eq("event", "create"),
+      sb
+        .from("qr_usage_events")
+        .select("*", { count: "exact", head: true })
+        .eq("user_id", user.id)
+        .eq("event", "create")
+        .gte("created_at", sevenDaysAgo),
+      sb
+        .from("qr_usage_events")
+        .select("*", { count: "exact", head: true })
+        .eq("user_id", user.id)
+        .eq("event", "create")
+        .gte("created_at", thirtyDaysAgo),
+    ]);
+
+  const cAll = createdAll ?? 0;
+  const c7 = created7 ?? 0;
+  const c30 = created30 ?? 0;
+
+  if (plan === "onetime") {
+    if (cAll >= 1) {
+      redirect("/qr-studio/dashboard?error=onetime_limit_reached");
+    }
+  } else {
+    if (c7 >= 5) {
+      redirect("/qr-studio/dashboard?error=weekly_limit_reached");
+    }
+    if (c30 >= 20) {
+      redirect("/qr-studio/dashboard?error=monthly_limit_reached");
+    }
+  }
+
+  // Create the project
   const { data: created, error } = await sb
     .from("qr_projects")
     .insert({
@@ -107,19 +171,28 @@ async function createProject(formData: FormData) {
 
   if (error || !created?.id) {
     console.error("[qr create] error:", error);
-    redirect("/qr-studio/new?error=create_failed");
+    redirect("/qr-studio/dashboard?error=create_failed");
   }
 
   const projectId = created.id as string;
 
-  // Upload logo if provided
-  if (logo) {
-    const ext = extFromMime(logo.type);
-    if (!ext) {
-      redirect("/qr-studio/new?error=logo_type_invalid");
-    }
+  // Write usage event (authoritative accounting)
+  const { error: usageErr } = await sb.from("qr_usage_events").insert({
+    user_id: user.id,
+    project_id: projectId,
+    event: "create",
+  });
 
-    const objectPath = `logos/${user.id}/${projectId}.${ext}`;
+  if (usageErr) {
+    console.error("[qr usage] insert error:", usageErr);
+    // Best-effort rollback so quota accounting cannot be bypassed
+    await sb.from("qr_projects").delete().eq("id", projectId);
+    redirect("/qr-studio/dashboard?error=create_failed");
+  }
+
+  // Upload logo if provided (non-blocking; quota already accounted for)
+  if (logo && logoExt) {
+    const objectPath = `logos/${user.id}/${projectId}.${logoExt}`;
     const bucket = sb.storage.from("qr-logos");
 
     const { error: upErr } = await bucket.upload(objectPath, logo, {
@@ -129,7 +202,6 @@ async function createProject(formData: FormData) {
 
     if (upErr) {
       console.error("[qr create] logo upload error:", upErr);
-      // Non-blocking: project exists, user can upload later
       redirect(`/qr-studio/${projectId}?upload=error&reason=upload_failed`);
     }
 
@@ -140,7 +212,6 @@ async function createProject(formData: FormData) {
 
     if (updErr) {
       console.error("[qr create] logo_path update error:", updErr);
-      // Non-blocking: project exists, but logo_path failed to set
       redirect(`/qr-studio/${projectId}?upload=error&reason=logo_path_failed`);
     }
 
