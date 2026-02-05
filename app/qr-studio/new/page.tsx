@@ -1,3 +1,4 @@
+// app/qr-studio/new/page.tsx
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { supabaseServer } from "@/src/lib/supabase/server";
@@ -55,6 +56,8 @@ function errorMessage(code: string | null): string | null {
       return "URL is required.";
     case "invalid_template":
       return "Invalid template. Please select T1, T2, or T3.";
+    case "missing_legal_accept":
+      return "You must confirm you’ve read the Terms and accept the Privacy Policy.";
     case "create_failed":
       return "Failed to create project. Please try again.";
     case "logo_not_allowed_t3":
@@ -73,6 +76,10 @@ async function createProject(formData: FormData) {
   const { data } = await sb.auth.getUser();
   const user = data.user;
   if (!user) redirect("/login");
+
+  // Mandatory legal acceptance (server-enforced)
+  const legalAccept = String(formData.get("legal_accept") ?? "").trim();
+  if (!legalAccept) redirect("/qr-studio/new?error=missing_legal_accept");
 
   // Entitlement gate (existing)
   const entitled = await hasQrStudioEntitlement(user.id);
@@ -361,6 +368,45 @@ export default async function NewQrProjectPage({
                 </div>
               </div>
 
+              {/* Mandatory legal consent */}
+              <div className="md:col-span-2 rounded-xl border border-white/10 bg-black/20 p-4">
+                <div className="text-xs font-semibold text-white">
+                  Legal acceptance (required)
+                </div>
+                <label className="mt-3 flex items-start gap-3 text-sm text-white/70">
+                  <input
+                    name="legal_accept"
+                    type="checkbox"
+                    required
+                    className="mt-1 h-4 w-4 accent-[#2563EB]"
+                  />
+                  <span className="leading-6">
+                    I’ve read the{" "}
+                    <Link
+                      href="/qr-studio#terms"
+                      className="underline text-white/80 hover:text-white"
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Terms
+                    </Link>{" "}
+                    and I accept the{" "}
+                    <Link
+                      href="/qr-studio#privacy"
+                      className="underline text-white/80 hover:text-white"
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Privacy Policy
+                    </Link>
+                    .
+                  </span>
+                </label>
+                <div className="mt-2 text-xs text-white/60">
+                  This consent is required to create a QR project.
+                </div>
+              </div>
+
               <div className="md:col-span-2 flex items-center justify-end gap-3 pt-2">
                 <Link
                   href="/qr-studio/dashboard"
@@ -410,6 +456,28 @@ export default async function NewQrProjectPage({
               <div className="mt-2 text-sm text-white/70">
                 For maximum trust, use your official business name and a short,
                 readable link (homepage or booking page).
+              </div>
+            </div>
+
+            <div className="mt-4 rounded-xl border border-white/10 bg-black/20 p-4">
+              <div className="text-xs text-white/60">Legal</div>
+              <div className="mt-2 flex flex-wrap gap-3 text-sm">
+                <Link
+                  href="/qr-studio#privacy"
+                  className="text-white/70 hover:text-white underline"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Privacy
+                </Link>
+                <Link
+                  href="/qr-studio#terms"
+                  className="text-white/70 hover:text-white underline"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Terms
+                </Link>
               </div>
             </div>
           </aside>

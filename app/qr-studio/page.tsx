@@ -1,3 +1,4 @@
+// app/qr-studio/page.tsx
 import Link from "next/link";
 import QRCode from "qrcode";
 import { supabaseServer } from "@/src/lib/supabase/server";
@@ -248,6 +249,333 @@ export default async function QrStudioLandingPage() {
           </div>
         </section>
 
+        {/* Local legal (QR Studio only) */}
+        <section className="mt-14 grid gap-4 lg:grid-cols-2">
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
+            <div className="text-sm font-semibold">Legal (QR Studio)</div>
+            <div className="mt-2 text-sm text-white/70">
+              These policies apply to the QR Studio product only. Later you can
+              replace these with global company policies and per-service pages.
+            </div>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <a
+                href="#privacy"
+                className="rounded-md border border-white/15 bg-white/5 px-4 py-2 text-sm font-medium hover:bg-white/10"
+              >
+                Privacy Policy
+              </a>
+              <a
+                href="#terms"
+                className="rounded-md border border-white/15 bg-white/5 px-4 py-2 text-sm font-medium hover:bg-white/10"
+              >
+                Terms of Service
+              </a>
+              <a
+                href="#pricing"
+                className="rounded-md bg-[#2563EB] px-4 py-2 text-sm font-semibold text-white hover:opacity-95"
+              >
+                Back to pricing
+              </a>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-white/10 bg-black/30 p-6">
+            <div className="text-sm font-semibold">Summary (what you buy)</div>
+            <ul className="mt-3 space-y-2 text-sm text-white/70">
+              <li>
+                <span className="font-semibold text-white">
+                  Static QR only:
+                </span>{" "}
+                no redirects, no analytics, no tracking.
+              </li>
+              <li>
+                <span className="font-semibold text-white">Templates:</span> T1
+                – T3 (deterministic, scanner-safe).
+              </li>
+              <li>
+                <span className="font-semibold text-white">Safety:</span> ECC H
+                + enforced quiet zone.
+              </li>
+              <li>
+                <span className="font-semibold text-white">Outputs:</span> PNG
+                1024×1024 + clean SVG.
+              </li>
+            </ul>
+          </div>
+        </section>
+
+        <section
+          id="privacy"
+          className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-8 scroll-mt-24"
+        >
+          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+            <div>
+              <h2 className="text-xl font-semibold">
+                Privacy Policy (QR Studio)
+              </h2>
+              <div className="mt-1 text-xs text-white/60">
+                Jurisdiction: Ireland / EU (GDPR). Contact:{" "}
+                <a className="underline" href="mailto:info@maxgensys.com">
+                  info@maxgensys.com
+                </a>
+              </div>
+            </div>
+            <a
+              href="#terms"
+              className="rounded-md border border-white/15 bg-white/5 px-4 py-2 text-sm font-medium hover:bg-white/10"
+            >
+              Jump to Terms
+            </a>
+          </div>
+
+          <div className="mt-6 space-y-5 text-sm text-white/70">
+            <div>
+              <div className="text-sm font-semibold text-white">
+                What this covers
+              </div>
+              <div className="mt-1">
+                This Privacy Policy applies only to the Maxgen QR Studio feature
+                available at <span className="text-white/80">/qr-studio</span>.
+              </div>
+            </div>
+
+            <div>
+              <div className="text-sm font-semibold text-white">
+                Data we process
+              </div>
+              <ul className="mt-2 list-disc space-y-1 pl-5">
+                <li>
+                  Account identity (via Supabase Auth): user ID and basic auth
+                  metadata needed to provide access.
+                </li>
+                <li>
+                  Project content you submit: business name, optional tagline,
+                  URL, selected template (T1–T3), and optional logo file.
+                </li>
+                <li>
+                  Usage events for enforcing plan limits: create events logged
+                  in <span className="text-white/80">qr_usage_events</span>.
+                  Deleting projects does not remove usage counts.
+                </li>
+                <li>
+                  Billing and entitlement state from Stripe (via server-side
+                  webhooks) to determine access status.
+                </li>
+              </ul>
+            </div>
+
+            <div>
+              <div className="text-sm font-semibold text-white">
+                Why we process it (legal bases)
+              </div>
+              <ul className="mt-2 list-disc space-y-1 pl-5">
+                <li>
+                  <span className="text-white/80">Contract:</span> to deliver QR
+                  generation outputs you request and provide your dashboard.
+                </li>
+                <li>
+                  <span className="text-white/80">Legitimate interests:</span>{" "}
+                  to prevent abuse and enforce product usage limits fairly.
+                </li>
+                <li>
+                  <span className="text-white/80">Legal obligations:</span>{" "}
+                  accounting/tax and regulatory compliance where applicable.
+                </li>
+              </ul>
+            </div>
+
+            <div>
+              <div className="text-sm font-semibold text-white">
+                Storage and sharing
+              </div>
+              <ul className="mt-2 list-disc space-y-1 pl-5">
+                <li>
+                  Logo files (if uploaded) are stored in Supabase Storage under
+                  a user/project path.
+                </li>
+                <li>
+                  We do not sell your personal data. We share data only with
+                  necessary processors to operate the service (e.g., Stripe for
+                  billing, Supabase for hosting/auth/storage).
+                </li>
+              </ul>
+            </div>
+
+            <div>
+              <div className="text-sm font-semibold text-white">
+                Retention and deletion
+              </div>
+              <ul className="mt-2 list-disc space-y-1 pl-5">
+                <li>
+                  You can delete QR projects. Deletion removes the project
+                  record, but does not restore usage allowances.
+                </li>
+                <li>
+                  Usage event records are retained to enforce rolling-window and
+                  lifetime limits.
+                </li>
+              </ul>
+            </div>
+
+            <div>
+              <div className="text-sm font-semibold text-white">
+                Your rights (GDPR)
+              </div>
+              <div className="mt-1">
+                You can request access, rectification, deletion (where
+                applicable), restriction, portability, and object to certain
+                processing. Contact{" "}
+                <a className="underline" href="mailto:info@maxgensys.com">
+                  info@maxgensys.com
+                </a>
+                .
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section
+          id="terms"
+          className="mt-6 rounded-2xl border border-white/10 bg-black/30 p-8 scroll-mt-24"
+        >
+          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+            <div>
+              <h2 className="text-xl font-semibold">
+                Terms of Service (QR Studio)
+              </h2>
+              <div className="mt-1 text-xs text-white/60">
+                Jurisdiction: Ireland / EU. Contact:{" "}
+                <a className="underline" href="mailto:info@maxgensys.com">
+                  info@maxgensys.com
+                </a>
+              </div>
+            </div>
+            <a
+              href="#privacy"
+              className="rounded-md border border-white/15 bg-white/5 px-4 py-2 text-sm font-medium hover:bg-white/10"
+            >
+              Back to Privacy
+            </a>
+          </div>
+
+          <div className="mt-6 space-y-5 text-sm text-white/70">
+            <div>
+              <div className="text-sm font-semibold text-white">
+                Product scope
+              </div>
+              <ul className="mt-2 list-disc space-y-1 pl-5">
+                <li>
+                  QR Studio generates{" "}
+                  <span className="text-white/80">static</span> QR codes only.
+                  No analytics. No redirects. No dynamic URLs.
+                </li>
+                <li>
+                  Templates are locked to{" "}
+                  <span className="text-white/80">T1–T3</span>. No custom shapes
+                  or colors.
+                </li>
+                <li>
+                  Technical safety defaults:{" "}
+                  <span className="text-white/80">ECC H</span> and enforced
+                  quiet zone.
+                </li>
+                <li>
+                  Logo limit: logo may be used on T1/T2 only and should not
+                  exceed <span className="text-white/80">22%</span> of the QR
+                  area. <span className="text-white/80">T3</span> does not allow
+                  a logo.
+                </li>
+                <li>
+                  Exports: <span className="text-white/80">PNG 1024×1024</span>{" "}
+                  and <span className="text-white/80">clean SVG</span>.
+                </li>
+              </ul>
+            </div>
+
+            <div>
+              <div className="text-sm font-semibold text-white">
+                Plans and usage limits (authoritative)
+              </div>
+              <ul className="mt-2 list-disc space-y-1 pl-5">
+                <li>
+                  <span className="text-white/80">One-time (€9):</span> exactly{" "}
+                  <span className="text-white/80">1</span> QR project total
+                  (lifetime). Deleting does not restore allowance.
+                </li>
+                <li>
+                  <span className="text-white/80">Monthly (€7/month):</span>{" "}
+                  maximum <span className="text-white/80">5</span> new projects
+                  per rolling 7 days and{" "}
+                  <span className="text-white/80">20</span> new projects per
+                  rolling 30 days. Deleting does not reduce counts.
+                </li>
+                <li>
+                  <span className="text-white/80">Edits:</span> each project can
+                  be edited once (lifetime). After the edit, the project locks
+                  for further edits (downloads still work).
+                </li>
+                <li>
+                  Counting is enforced via server-side usage events (
+                  <span className="text-white/80">qr_usage_events</span>) with{" "}
+                  <span className="text-white/80">
+                    {'event = "create"'}
+                  </span>{" "}
+                </li>
+              </ul>
+            </div>
+
+            <div>
+              <div className="text-sm font-semibold text-white">
+                Billing and access
+              </div>
+              <ul className="mt-2 list-disc space-y-1 pl-5">
+                <li>
+                  Access is determined by server-side entitlements derived from
+                  Stripe webhooks (source of truth).
+                </li>
+                <li>
+                  Subscription cancellation is handled via the Stripe Billing
+                  Portal and typically cancels at period end.
+                </li>
+              </ul>
+            </div>
+
+            <div>
+              <div className="text-sm font-semibold text-white">
+                Acceptable use
+              </div>
+              <div className="mt-1">
+                You are responsible for the URL/content you encode and any
+                rights to logos you upload. Do not use QR Studio for unlawful,
+                deceptive, or infringing content.
+              </div>
+            </div>
+
+            <div>
+              <div className="text-sm font-semibold text-white">
+                Service availability and warranties
+              </div>
+              <div className="mt-1">
+                QR Studio is provided “as is” and “as available”. We aim for
+                reliable operation, but uninterrupted service is not guaranteed.
+              </div>
+            </div>
+
+            <div>
+              <div className="text-sm font-semibold text-white">
+                Contact and disputes
+              </div>
+              <div className="mt-1">
+                For support or legal requests, contact{" "}
+                <a className="underline" href="mailto:info@maxgensys.com">
+                  info@maxgensys.com
+                </a>
+                . Jurisdiction is Ireland / EU.
+              </div>
+            </div>
+          </div>
+        </section>
+
         {/* Footer */}
         <section className="mt-14 rounded-2xl border border-white/10 bg-black/30 p-8">
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -257,6 +585,14 @@ export default async function QrStudioLandingPage() {
               </div>
               <div className="mt-1 text-sm text-white/70">
                 Pay → Create → Download → Done.
+              </div>
+              <div className="mt-3 flex flex-wrap gap-3 text-sm">
+                <a className="text-white/70 hover:text-white" href="#privacy">
+                  Privacy
+                </a>
+                <a className="text-white/70 hover:text-white" href="#terms">
+                  Terms
+                </a>
               </div>
             </div>
             <div className="flex gap-2">

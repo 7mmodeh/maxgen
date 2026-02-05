@@ -1,3 +1,4 @@
+// app/qr-studio/dashboard/page.tsx
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { supabaseServer } from "@/src/lib/supabase/server";
@@ -343,6 +344,27 @@ export default async function QrStudioDashboardPage({
                 1024 + clean SVG.
               </li>
             </ul>
+
+            <div className="mt-5 rounded-xl border border-white/10 bg-black/20 p-4">
+              <div className="text-xs text-white/60">Legal (QR Studio)</div>
+              <div className="mt-2 flex flex-wrap gap-3 text-sm">
+                <Link
+                  href="/qr-studio#privacy"
+                  className="text-white/70 hover:text-white underline"
+                >
+                  Privacy
+                </Link>
+                <Link
+                  href="/qr-studio#terms"
+                  className="text-white/70 hover:text-white underline"
+                >
+                  Terms
+                </Link>
+              </div>
+              <div className="mt-2 text-xs text-white/60">
+                Required acceptance occurs during project creation.
+              </div>
+            </div>
           </div>
         </section>
 
