@@ -1,13 +1,7 @@
-// app/ops/settings/expenses/_components/ExpensesClient.tsx
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { authedPostJson } from "@/app/ops/settings/_lib/auth-fetch";
-import {
-  BUSINESS_LINES,
-  DEFAULT_EXPENSE_FREQUENCIES,
-  type BusinessLine,
-} from "@/app/ops/settings/_lib/ops-constants";
 
 type ExpenseRow = {
   id: string;
@@ -24,27 +18,78 @@ type ExpenseRow = {
   updated_at: string;
 };
 
+type EnumsPayload = {
+  business_lines: string[];
+  categories: string[];
+  frequencies: string[];
+};
+
 type FormState = {
   id?: string;
-  business_line: BusinessLine;
+  business_line: string;
   name: string;
   category: string;
   amount_expected: string;
   frequency: string;
   due_date: string;
-  status: string;
+
+  // status is TEXT in DB; we use preset + optional custom
+  status_mode: "preset" | "custom";
+  status_preset: string;
+  status_custom: string;
+
   notes: string;
 };
+
+const STATUS_PRESETS: string[] = ["upcoming", "due", "overdue", "done"];
+
+function todayIso(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function normalizeEnumList(v: unknown): string[] {
+  if (!Array.isArray(v)) return [];
+  return v.map((x) => String(x ?? "").trim()).filter((s) => s.length > 0);
+}
+
+function deriveStatusState(
+  statusRaw: string | null | undefined,
+): Pick<FormState, "status_mode" | "status_preset" | "status_custom"> {
+  const value = String(statusRaw ?? "").trim();
+  if (!value) {
+    return {
+      status_mode: "preset",
+      status_preset: "upcoming",
+      status_custom: "",
+    };
+  }
+  const preset = STATUS_PRESETS.find((s) => s === value);
+  if (preset) {
+    return { status_mode: "preset", status_preset: preset, status_custom: "" };
+  }
+  return {
+    status_mode: "custom",
+    status_preset: "upcoming",
+    status_custom: value,
+  };
+}
+
+function statusToText(f: FormState): string {
+  if (f.status_mode === "custom") return String(f.status_custom ?? "").trim();
+  return String(f.status_preset ?? "").trim();
+}
 
 function blankForm(): FormState {
   return {
     business_line: "company",
     name: "",
-    category: "general",
+    category: "",
     amount_expected: "0",
-    frequency: "monthly",
-    due_date: new Date().toISOString().slice(0, 10),
-    status: "upcoming",
+    frequency: "",
+    due_date: todayIso(),
+    status_mode: "preset",
+    status_preset: "upcoming",
+    status_custom: "",
     notes: "",
   };
 }
@@ -57,18 +102,97 @@ export default function ExpensesClient({
   const rows = useMemo(() => initialRows, [initialRows]);
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+
+  const [enumsLoading, setEnumsLoading] = useState(true);
+  const [enumsErr, setEnumsErr] = useState<string | null>(null);
+  const [enums, setEnums] = useState<EnumsPayload>({
+    business_lines: [],
+    categories: [],
+    frequencies: [],
+  });
+
   const [form, setForm] = useState<FormState>(blankForm());
 
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadEnums() {
+      setEnumsLoading(true);
+      setEnumsErr(null);
+      try {
+        const json = await authedPostJson<EnumsPayload>(
+          "/api/ops/settings/expenses/enums",
+          {},
+        );
+
+        const payload: EnumsPayload = {
+          business_lines: normalizeEnumList(json.business_lines),
+          categories: normalizeEnumList(json.categories),
+          frequencies: normalizeEnumList(json.frequencies),
+        };
+
+        if (cancelled) return;
+        setEnums(payload);
+
+        // Set safe defaults after load
+        setForm((prev) => {
+          const next = { ...prev };
+
+          if (payload.business_lines.length > 0) {
+            if (!payload.business_lines.includes(next.business_line)) {
+              next.business_line = payload.business_lines.includes("company")
+                ? "company"
+                : payload.business_lines[0];
+            }
+          }
+
+          if (payload.categories.length > 0) {
+            if (!payload.categories.includes(next.category)) {
+              next.category = payload.categories[0];
+            }
+          }
+
+          if (payload.frequencies.length > 0) {
+            if (!payload.frequencies.includes(next.frequency)) {
+              next.frequency = payload.frequencies.includes("monthly")
+                ? "monthly"
+                : payload.frequencies[0];
+            }
+          }
+
+          return next;
+        });
+      } catch (e: unknown) {
+        if (cancelled) return;
+        const m = e instanceof Error ? e.message : String(e);
+        setEnumsErr(m || "Failed to load enums.");
+      } finally {
+        if (!cancelled) setEnumsLoading(false);
+      }
+    }
+
+    void loadEnums();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  function resetForm() {
+    setForm(blankForm());
+    setMsg(null);
+  }
+
   function editRow(r: ExpenseRow) {
+    const st = deriveStatusState(r.status);
     setForm({
       id: r.id,
-      business_line: (r.business_line as BusinessLine) ?? "company",
+      business_line: r.business_line ?? "company",
       name: r.name ?? "",
-      category: r.category ?? "general",
+      category: r.category ?? "",
       amount_expected: r.amount_expected ?? "0",
-      frequency: r.frequency ?? "monthly",
-      due_date: r.due_date ?? new Date().toISOString().slice(0, 10),
-      status: r.status ?? "upcoming",
+      frequency: r.frequency ?? "",
+      due_date: r.due_date ?? todayIso(),
+      ...st,
       notes: r.notes ?? "",
     });
     setMsg(null);
@@ -78,25 +202,53 @@ export default function ExpensesClient({
     setLoading(true);
     setMsg(null);
     try {
-      if (!form.name.trim()) throw new Error("Name is required.");
-      if (!form.category.trim())
-        throw new Error("Category is required (must match enum label).");
-      if (!form.frequency.trim())
-        throw new Error("Frequency is required (must match enum label).");
-      if (!form.due_date.trim()) throw new Error("Due date is required.");
-      if (!form.status.trim()) throw new Error("Status is required.");
+      const name = String(form.name ?? "").trim();
+      if (!name) throw new Error("Name is required.");
 
-      await authedPostJson("/api/ops/settings/expenses/upsert", {
-        id: form.id ?? null,
-        business_line: form.business_line,
-        name: form.name.trim(),
-        category: form.category.trim(),
-        amount_expected: Number(form.amount_expected),
-        frequency: form.frequency.trim(),
-        due_date: form.due_date,
-        status: form.status.trim(),
-        notes: form.notes ?? "",
-      });
+      const category = String(form.category ?? "").trim();
+      if (!category) throw new Error("Category is required.");
+      if (enums.categories.length > 0 && !enums.categories.includes(category)) {
+        throw new Error("Invalid category selection (not in enum).");
+      }
+
+      const frequency = String(form.frequency ?? "").trim();
+      if (!frequency) throw new Error("Frequency is required.");
+      if (
+        enums.frequencies.length > 0 &&
+        !enums.frequencies.includes(frequency)
+      ) {
+        throw new Error("Invalid frequency selection (not in enum).");
+      }
+
+      const due = String(form.due_date ?? "").trim();
+      if (!due) throw new Error("Due date is required.");
+
+      const businessLine = String(form.business_line ?? "").trim();
+      if (!businessLine) throw new Error("Business line is required.");
+      if (
+        enums.business_lines.length > 0 &&
+        !enums.business_lines.includes(businessLine)
+      ) {
+        throw new Error("Invalid business line selection (not in enum).");
+      }
+
+      const status = statusToText(form);
+      if (!status) throw new Error("Status is required.");
+
+      await authedPostJson<{ ok: boolean }>(
+        "/api/ops/settings/expenses/upsert",
+        {
+          id: form.id ?? null,
+          business_line: businessLine,
+          name,
+          category,
+          amount_expected: Number(form.amount_expected),
+          frequency,
+          due_date: due,
+          status,
+          notes: form.notes ?? "",
+        },
+      );
 
       window.location.reload();
     } catch (e: unknown) {
@@ -110,11 +262,14 @@ export default function ExpensesClient({
     setLoading(true);
     setMsg(null);
     try {
-      await authedPostJson("/api/ops/settings/expenses/mark-paid", {
-        id,
-        paid_at: new Date().toISOString().slice(0, 10),
-        status: "done",
-      });
+      await authedPostJson<{ ok: boolean }>(
+        "/api/ops/settings/expenses/mark-paid",
+        {
+          id,
+          paid_at: todayIso(),
+          status: "done",
+        },
+      );
       window.location.reload();
     } catch (e: unknown) {
       setMsg(e instanceof Error ? e.message : String(e));
@@ -122,6 +277,8 @@ export default function ExpensesClient({
       setLoading(false);
     }
   }
+
+  const statusOptions = [...STATUS_PRESETS, "Custom…"];
 
   return (
     <div className="mt-10 grid gap-6 lg:grid-cols-3">
@@ -132,10 +289,20 @@ export default function ExpensesClient({
         </div>
 
         <div className="mt-2 text-xs opacity-70">
-          Note: <span className="font-semibold">category</span> and{" "}
-          <span className="font-semibold">frequency</span> are DB enums. If you
-          enter a value not in the enum, the API will error.
+          Category and frequency are strict DB enums (select-only). Status is
+          text (preset + optional custom).
         </div>
+
+        {enumsLoading ? (
+          <div className="mt-4 rounded-xl border p-4 text-xs opacity-80">
+            Loading enum options…
+          </div>
+        ) : enumsErr ? (
+          <div className="mt-4 rounded-xl border p-4 text-xs">
+            <div className="font-semibold">Enum load failed</div>
+            <div className="mt-1 opacity-80">{enumsErr}</div>
+          </div>
+        ) : null}
 
         <div className="mt-4 overflow-auto rounded-xl border">
           <table className="w-full text-sm">
@@ -194,7 +361,7 @@ export default function ExpensesClient({
           </div>
           <button
             className="text-xs underline underline-offset-4"
-            onClick={() => setForm(blankForm())}
+            onClick={resetForm}
           >
             Reset
           </button>
@@ -207,13 +374,14 @@ export default function ExpensesClient({
               className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
               value={form.business_line}
               onChange={(e) =>
-                setForm((s) => ({
-                  ...s,
-                  business_line: e.target.value as BusinessLine,
-                }))
+                setForm((s) => ({ ...s, business_line: e.target.value }))
               }
+              disabled={enumsLoading || !!enumsErr}
             >
-              {BUSINESS_LINES.map((b) => (
+              {(enums.business_lines.length
+                ? enums.business_lines
+                : ["company"]
+              ).map((b) => (
                 <option key={b} value={b}>
                   {b}
                 </option>
@@ -231,15 +399,21 @@ export default function ExpensesClient({
           </label>
 
           <label className="block">
-            <div className="text-xs opacity-70">Category (enum label)</div>
-            <input
+            <div className="text-xs opacity-70">Category</div>
+            <select
               className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
               value={form.category}
               onChange={(e) =>
                 setForm((s) => ({ ...s, category: e.target.value }))
               }
-              placeholder="e.g. general"
-            />
+              disabled={enumsLoading || !!enumsErr}
+            >
+              {(enums.categories.length ? enums.categories : [""]).map((c) => (
+                <option key={c || "__empty"} value={c}>
+                  {c || "—"}
+                </option>
+              ))}
+            </select>
           </label>
 
           <label className="block">
@@ -255,20 +429,23 @@ export default function ExpensesClient({
           </label>
 
           <label className="block">
-            <div className="text-xs opacity-70">Frequency (enum label)</div>
-            <input
+            <div className="text-xs opacity-70">Frequency</div>
+            <select
               className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
               value={form.frequency}
               onChange={(e) =>
                 setForm((s) => ({ ...s, frequency: e.target.value }))
               }
-              list="expense-frequency-suggestions"
-            />
-            <datalist id="expense-frequency-suggestions">
-              {DEFAULT_EXPENSE_FREQUENCIES.map((f) => (
-                <option key={f} value={f} />
-              ))}
-            </datalist>
+              disabled={enumsLoading || !!enumsErr}
+            >
+              {(enums.frequencies.length ? enums.frequencies : [""]).map(
+                (f) => (
+                  <option key={f || "__empty"} value={f}>
+                    {f || "—"}
+                  </option>
+                ),
+              )}
+            </select>
           </label>
 
           <label className="block">
@@ -284,14 +461,43 @@ export default function ExpensesClient({
           </label>
 
           <label className="block">
-            <div className="text-xs opacity-70">Status (text)</div>
-            <input
+            <div className="text-xs opacity-70">Status</div>
+            <select
               className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
-              value={form.status}
-              onChange={(e) =>
-                setForm((s) => ({ ...s, status: e.target.value }))
+              value={
+                form.status_mode === "custom" ? "Custom…" : form.status_preset
               }
-            />
+              onChange={(e) => {
+                const v = e.target.value;
+                if (v === "Custom…") {
+                  setForm((s) => ({ ...s, status_mode: "custom" }));
+                } else {
+                  setForm((s) => ({
+                    ...s,
+                    status_mode: "preset",
+                    status_preset: v,
+                    status_custom: "",
+                  }));
+                }
+              }}
+            >
+              {statusOptions.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
+
+            {form.status_mode === "custom" ? (
+              <input
+                className="mt-2 w-full rounded-lg border px-3 py-2 text-sm"
+                placeholder="Custom status…"
+                value={form.status_custom}
+                onChange={(e) =>
+                  setForm((s) => ({ ...s, status_custom: e.target.value }))
+                }
+              />
+            ) : null}
           </label>
 
           <label className="block">
@@ -307,7 +513,7 @@ export default function ExpensesClient({
           </label>
 
           <button
-            disabled={loading}
+            disabled={loading || enumsLoading || !!enumsErr}
             onClick={() => void save()}
             className="mt-2 w-full rounded-lg px-4 py-2 text-sm font-semibold disabled:opacity-60"
             style={{ background: "var(--mx-cta)", color: "#fff" }}
