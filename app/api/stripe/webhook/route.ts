@@ -90,6 +90,62 @@ function getInvoiceSubscriptionId(invoice: Stripe.Invoice): string | null {
   return typeof sub === "string" ? sub : null;
 }
 
+/**
+ * Read existing entitlement for metadata merge / fallbacks.
+ */
+async function getExistingEntitlement(args: {
+  userId: string;
+  productKey: ProductKey;
+  plan: Plan;
+}): Promise<{ id: string; metadata: unknown } | null> {
+  const admin = getSupabaseAdmin();
+  const res = await admin
+    .from("entitlements")
+    .select("id,metadata")
+    .eq("user_id", args.userId)
+    .eq("product_key", args.productKey)
+    .eq("plan", args.plan)
+    .maybeSingle();
+
+  if (res.error) {
+    console.error("getExistingEntitlement error:", res.error);
+    return null;
+  }
+  return res.data ?? null;
+}
+
+async function getEntitlementBySubscriptionId(args: {
+  stripeSubscriptionId: string;
+}): Promise<
+  | {
+      id: string;
+      user_id: string;
+      product_key: string;
+      plan: string;
+      stripe_subscription_id: string | null;
+      stripe_customer_id: string | null;
+      metadata: unknown;
+    }
+  | null
+> {
+  const admin = getSupabaseAdmin();
+  const res = await admin
+    .from("entitlements")
+    .select(
+      "id,user_id,product_key,plan,stripe_subscription_id,stripe_customer_id,metadata",
+    )
+    .eq("stripe_subscription_id", args.stripeSubscriptionId)
+    .order("updated_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (res.error) {
+    console.error("getEntitlementBySubscriptionId error:", res.error);
+    return null;
+  }
+  return res.data ?? null;
+}
+
 async function upsertEntitlement(args: {
   userId: string;
   productKey: ProductKey;
@@ -100,34 +156,67 @@ async function upsertEntitlement(args: {
   stripePaymentIntentId: string | null;
   expiresAt: string | null;
   metadata: Record<string, unknown>;
+  eventType: string; // for metadata merge
   // canonical paid fields
   amountCents: number | null;
   currency: string | null;
   paidAtIso: string | null;
   stripeInvoiceId: string | null;
 }) {
+  const admin = getSupabaseAdmin();
   const now = new Date().toISOString();
 
-  const payload = {
+  // ✅ metadata merge: preserve context
+  const existing = await getExistingEntitlement({
+    userId: args.userId,
+    productKey: args.productKey,
+    plan: args.plan,
+  });
+
+  const existingMeta =
+    existing?.metadata && typeof existing.metadata === "object"
+      ? (existing.metadata as Record<string, unknown>)
+      : {};
+
+  const mergedMetadata: Record<string, unknown> = {
+    ...existingMeta,
+    ...args.metadata,
+    source: "stripe",
+    last_event: args.eventType,
+    last_event_at: now,
+  };
+
+  // ✅ Base payload (never includes paid snapshot fields unless provided)
+  const payload: Record<string, unknown> = {
     user_id: args.userId,
     product_key: args.productKey,
     plan: args.plan,
     status: args.status,
     stripe_customer_id: args.stripeCustomerId,
     stripe_subscription_id: args.stripeSubscriptionId,
-    stripe_payment_intent_id: args.stripePaymentIntentId,
     expires_at: args.expiresAt,
-    metadata: args.metadata,
+    metadata: mergedMetadata,
     updated_at: now,
-
-    // paid-only canonical fields (keep null unless paid event)
-    amount_cents: args.amountCents,
-    currency: args.currency,
-    paid_at: args.paidAtIso,
-    stripe_invoice_id: args.stripeInvoiceId,
   };
 
-  const { error } = await getSupabaseAdmin()
+  // ✅ Never wipe paid snapshot fields on non-paid events
+  if (args.stripePaymentIntentId !== null) {
+    payload["stripe_payment_intent_id"] = args.stripePaymentIntentId;
+  }
+  if (args.amountCents !== null) {
+    payload["amount_cents"] = args.amountCents;
+  }
+  if (args.currency !== null) {
+    payload["currency"] = args.currency;
+  }
+  if (args.paidAtIso !== null) {
+    payload["paid_at"] = args.paidAtIso;
+  }
+  if (args.stripeInvoiceId !== null) {
+    payload["stripe_invoice_id"] = args.stripeInvoiceId;
+  }
+
+  const { error } = await admin
     .from("entitlements")
     .upsert(payload, { onConflict: "user_id,product_key,plan" });
 
@@ -201,7 +290,7 @@ async function ensureStripeLedgerEntry(args: {
     bank_account_id: args.bankAccountId,
     amount: amt, // numeric
     entry_type: "customer_payment",
-    category: "general", // ledger_category enum (you can change later)
+    category: "general",
     business_line: args.businessLine,
     counterparty: null,
     payment_method: `stripe:${args.currency}`,
@@ -269,7 +358,6 @@ export async function POST(req: Request) {
         const amountTotal =
           typeof session.amount_total === "number" ? session.amount_total : null;
 
-        // Get line items to derive product keys (authoritative)
         const items = await stripe.checkout.sessions.listLineItems(session.id, {
           limit: 100,
         });
@@ -294,7 +382,6 @@ export async function POST(req: Request) {
             else if (productKey === "presence_seo") presencePackage = "seo";
           }
 
-          // Option A (safe): per-line allocation for onetime entitlements using li.amount_total
           const lineAmountTotal =
             typeof li.amount_total === "number" ? li.amount_total : null;
 
@@ -309,15 +396,12 @@ export async function POST(req: Request) {
               plan === "onetime" ? stripePaymentIntentId : null,
             expiresAt: null,
             metadata: {
-              source: "stripe",
               event: "checkout.session.completed",
               checkout_session_id: session.id,
               price_id: priceId,
             },
+            eventType: "checkout.session.completed",
 
-            // Canonical paid fields:
-            // - Onetime: stamp per-line cents (Option A)
-            // - Monthly: do NOT stamp (renewals & precise amounts come via invoice.paid)
             amountCents: plan === "onetime" ? lineAmountTotal : null,
             currency: plan === "onetime" ? currency : null,
             paidAtIso: plan === "onetime" ? paidAtIso : null,
@@ -325,7 +409,6 @@ export async function POST(req: Request) {
           });
         }
 
-        // Presence operational order: stamp paid fields from session (canonical)
         if (presencePackage) {
           await upsertPresenceOrder({
             userId,
@@ -339,8 +422,6 @@ export async function POST(req: Request) {
           });
         }
 
-        // Ledger entry for the cash actually received at checkout.
-        // Use payment_intent id as canonical Stripe source id for this entry.
         if (stripePaymentIntentId && amountTotal && currency) {
           const effectiveDateIso = (paidAtIso ?? new Date().toISOString()).slice(
             0,
@@ -369,7 +450,6 @@ export async function POST(req: Request) {
       }
 
       case "invoice.paid": {
-        // Handles subscription renewals and also first subscription invoice if applicable.
         const invoice = event.data.object as Stripe.Invoice;
 
         const stripeCustomerId =
@@ -391,12 +471,10 @@ export async function POST(req: Request) {
         const amountPaid =
           typeof invoice.amount_paid === "number" ? invoice.amount_paid : null;
 
-        // Expand invoice lines to access price ids
         const expanded = await stripe.invoices.retrieve(invoiceId, {
           expand: ["lines.data.price"],
         });
 
-        // Aggregate amounts per (productKey, plan) from invoice lines
         const perKey = new Map<string, number>();
         const perKeyPlan = new Map<string, { productKey: ProductKey; plan: Plan }>();
 
@@ -408,7 +486,6 @@ export async function POST(req: Request) {
           const plan = planFromPriceId(priceId);
           if (!productKey || !plan) continue;
 
-          // Only care about monthly items from invoices
           if (plan !== "monthly") continue;
 
           const key = `${productKey}__${plan}`;
@@ -419,7 +496,6 @@ export async function POST(req: Request) {
 
         const invoiceSubscriptionId = getInvoiceSubscriptionId(expanded);
 
-        // Upsert entitlement(s) with canonical invoice paid fields
         for (const [k, cents] of perKey.entries()) {
           const meta = perKeyPlan.get(k);
           if (!meta) continue;
@@ -434,12 +510,11 @@ export async function POST(req: Request) {
             stripePaymentIntentId: null,
             expiresAt: null,
             metadata: {
-              source: "stripe",
               event: "invoice.paid",
               invoice_id: invoiceId,
             },
+            eventType: "invoice.paid",
 
-            // canonical paid fields (paid-only)
             amountCents: cents > 0 ? cents : null,
             currency,
             paidAtIso,
@@ -447,13 +522,58 @@ export async function POST(req: Request) {
           });
         }
 
-        // Single ledger entry for invoice paid amount (source-of-truth cash receipt)
+        let fallbackProductKey: ProductKey | null = null;
+        if (perKeyPlan.size === 0 && amountPaid && currency) {
+          if (invoiceSubscriptionId) {
+            const ent = await getEntitlementBySubscriptionId({
+              stripeSubscriptionId: invoiceSubscriptionId,
+            });
+
+            if (ent?.user_id === userId) {
+              const pk = ent.product_key;
+              const pl = ent.plan;
+              if (typeof pk === "string" && typeof pl === "string") {
+                const productKey = pk as ProductKey;
+                const plan = pl as Plan;
+
+                fallbackProductKey = productKey;
+
+                await upsertEntitlement({
+                  userId,
+                  productKey,
+                  plan,
+                  status: "active",
+                  stripeCustomerId,
+                  stripeSubscriptionId: invoiceSubscriptionId,
+                  stripePaymentIntentId: null,
+                  expiresAt: null,
+                  metadata: {
+                    event: "invoice.paid",
+                    invoice_id: invoiceId,
+                    fallback: "subscription_lookup",
+                  },
+                  eventType: "invoice.paid",
+
+                  amountCents: amountPaid,
+                  currency,
+                  paidAtIso,
+                  stripeInvoiceId: invoiceId,
+                });
+              }
+            }
+          }
+        }
+
         if (amountPaid && currency) {
-          // Decide business line (usually invoice is single product family)
           let bl: "company" | "qr_studio" = "company";
+
           for (const v of perKeyPlan.values()) {
             bl = businessLineFromProductKey(v.productKey);
             break;
+          }
+
+          if (perKeyPlan.size === 0 && fallbackProductKey) {
+            bl = businessLineFromProductKey(fallbackProductKey);
           }
 
           const effectiveDateIso = (paidAtIso ?? new Date().toISOString()).slice(
@@ -519,14 +639,13 @@ export async function POST(req: Request) {
             stripePaymentIntentId: null,
             expiresAt,
             metadata: {
-              source: "stripe",
               event: event.type,
               subscription_id: expanded.id,
               price_id: priceId,
               stripe_status: expanded.status,
             },
+            eventType: event.type,
 
-            // do NOT stamp paid fields here (this is not a payment event)
             amountCents: null,
             currency: null,
             paidAtIso: null,
