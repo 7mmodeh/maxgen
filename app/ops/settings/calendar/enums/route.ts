@@ -1,13 +1,19 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/src/lib/supabase-admin";
 
+type RpcResult = {
+  business_lines?: unknown;
+  frequencies?: unknown;
+  statuses?: unknown;
+};
+
 function getBearer(req: Request): string | null {
   const h = req.headers.get("authorization") || "";
   const m = h.match(/^Bearer\s+(.+)$/i);
   return m?.[1] ?? null;
 }
 
-export async function GET(req: Request) {
+export async function POST(req: Request) {
   try {
     const admin = getSupabaseAdmin();
 
@@ -27,15 +33,11 @@ export async function GET(req: Request) {
     const role = (roleRes.data as { role?: string } | null)?.role ?? null;
     if (role !== "admin") return new NextResponse("Forbidden", { status: 403 });
 
-    // Requires SQL function: public.ops_calendar_enums()
+    // Requires: public.ops_calendar_enums()
     const rpc = await admin.rpc("ops_calendar_enums");
     if (rpc.error) return new NextResponse(rpc.error.message, { status: 400 });
 
-    const payload = (rpc.data ?? {}) as {
-      business_lines?: unknown;
-      frequencies?: unknown;
-      statuses?: unknown;
-    };
+    const payload = (rpc.data ?? {}) as RpcResult;
 
     return NextResponse.json({
       business_lines: Array.isArray(payload.business_lines)

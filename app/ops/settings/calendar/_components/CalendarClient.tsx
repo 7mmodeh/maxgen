@@ -139,19 +139,14 @@ export default function CalendarClient({
     async function loadEnums() {
       setEnumsLoading(true);
       setEnumsErr(null);
+
       try {
-        const res = await fetch("/api/ops/settings/calendar/enums", {
-          method: "GET",
-          credentials: "same-origin",
-          headers: { "content-type": "application/json" },
-        });
+        // IMPORTANT: must use authedPostJson so bearer token is included
+        const json = (await authedPostJson(
+          "/api/ops/settings/calendar/enums",
+          {},
+        )) as Partial<EnumsPayload>;
 
-        if (!res.ok) {
-          const text = await res.text();
-          throw new Error(text || `Failed to load enums (${res.status})`);
-        }
-
-        const json = (await res.json()) as Partial<EnumsPayload>;
         const payload: EnumsPayload = {
           business_lines: normalizeEnumList(json.business_lines),
           frequencies: normalizeEnumList(json.frequencies),
@@ -193,7 +188,8 @@ export default function CalendarClient({
         });
       } catch (e: unknown) {
         if (cancelled) return;
-        setEnumsErr(e instanceof Error ? e.message : String(e));
+        const m = e instanceof Error ? e.message : String(e);
+        setEnumsErr(m || "Failed to load enums.");
       } finally {
         if (!cancelled) setEnumsLoading(false);
       }

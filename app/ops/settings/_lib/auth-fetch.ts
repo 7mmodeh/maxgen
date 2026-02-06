@@ -3,10 +3,10 @@
 
 import { supabaseBrowser } from "@/src/lib/supabase/browser";
 
-export async function authedPostJson<TBody extends Record<string, unknown>>(
-  url: string,
-  body: TBody,
-): Promise<void> {
+export async function authedPostJson<
+  TResponse = unknown,
+  TBody extends Record<string, unknown> = Record<string, unknown>
+>(url: string, body: TBody): Promise<TResponse> {
   const { data, error } = await supabaseBrowser.auth.getSession();
   if (error) throw error;
 
@@ -22,6 +22,16 @@ export async function authedPostJson<TBody extends Record<string, unknown>>(
     body: JSON.stringify(body),
   });
 
+  // Some endpoints may return empty body; keep this helper resilient.
   const text = await res.text();
   if (!res.ok) throw new Error(text || `Request failed (${res.status})`);
+
+  if (!text) return undefined as TResponse;
+
+  try {
+    return JSON.parse(text) as TResponse;
+  } catch {
+    // If the endpoint returns plain text (rare), surface as string.
+    return text as unknown as TResponse;
+  }
 }
