@@ -247,12 +247,17 @@ function computeExpectedCashByAccount(
   const { isSignedSource, signedById, transferWarnings } =
     computeSignedLedger(entries);
 
+  // Seed from ops_bank_accounts.opening_balance_amount (canonical for Option A)
   const totalsByAccountId = new Map<string, number>();
   for (const a of accounts) {
     totalsByAccountId.set(a.id, toNumber(a.opening_balance_amount));
   }
 
   for (const e of entries) {
+    // ✅ FIX (Option A): prevent double-counting opening balance
+    // because opening is already seeded from ops_bank_accounts.
+    if (e.entry_type === "opening_balance") continue;
+
     const signed = signedById.get(e.id) ?? 0;
     const prev = totalsByAccountId.get(e.bank_account_id) ?? 0;
     totalsByAccountId.set(e.bank_account_id, prev + signed);
@@ -330,25 +335,22 @@ function computeReserves(
   return { perBucketReserved, totalReserved };
 }
 
-/**
- * Aggregate sales_cents by currency from sales rollup rows.
- * - Ignores negative amounts (safety)
- * - Normalizes null/empty currency to "UNKNOWN"
- */
-function salesByCurrency(rows: SalesDailyRollupRow[]): Array<{
+function groupSalesByCurrency(rows: SalesDailyRollupRow[]): Array<{
   currency: string;
   amount_cents: number;
 }> {
   const m = new Map<string, number>();
+
   for (const r of rows) {
     const cur = String(r.currency ?? "").trim() || "UNKNOWN";
-    const amt = Math.max(0, Math.trunc(toNumber(r.amount_cents)));
-    m.set(cur, (m.get(cur) ?? 0) + amt);
+    const cents = Math.max(0, Math.trunc(toNumber(r.amount_cents)));
+    if (cents <= 0) continue;
+    m.set(cur, (m.get(cur) ?? 0) + cents);
   }
-  return Array.from(m.entries()).map(([currency, amount_cents]) => ({
-    currency,
-    amount_cents,
-  }));
+
+  return Array.from(m.entries())
+    .map(([currency, amount_cents]) => ({ currency, amount_cents }))
+    .sort((a, b) => a.currency.localeCompare(b.currency));
 }
 
 export default async function OpsDashboardPage() {
@@ -552,7 +554,6 @@ export default async function OpsDashboardPage() {
   // SALES (OPS-LEDGER-02D)
   // -------------------------
   const salesSince30 = daysAgoIso(30);
-  const sales7Since = daysAgoIso(7);
 
   const sales30Res = await admin
     .from("ops_sales_daily_rollup")
@@ -563,24 +564,19 @@ export default async function OpsDashboardPage() {
 
   const salesDaily = (sales30Res.data as SalesDailyRollupRow[] | null) ?? [];
 
+  const sales7Since = daysAgoIso(7);
   const salesTodayRows = salesDaily.filter((r) => r.day === today);
   const sales7Rows = salesDaily.filter(
     (r) => r.day >= sales7Since && r.day <= today,
   );
   const sales30Rows = salesDaily;
 
-  const salesTodayByCurrency = salesByCurrency(salesTodayRows);
-  const sales7dByCurrency = salesByCurrency(sales7Rows);
-  const sales30dByCurrency = salesByCurrency(sales30Rows);
-
-  const sales30dByBusinessLineMap = new Map<string, number>();
+  const sales30dByBusinessLine = new Map<string, number>();
   for (const r of sales30Rows) {
     const bl = String(r.business_line ?? "").trim() || "unknown";
     const amt = Math.max(0, Math.trunc(toNumber(r.amount_cents)));
-    sales30dByBusinessLineMap.set(
-      bl,
-      (sales30dByBusinessLineMap.get(bl) ?? 0) + amt,
-    );
+    if (amt <= 0) continue;
+    sales30dByBusinessLine.set(bl, (sales30dByBusinessLine.get(bl) ?? 0) + amt);
   }
 
   const currencies = Array.from(expected.totalsByCurrency.keys());
@@ -646,12 +642,12 @@ export default async function OpsDashboardPage() {
             : "unsigned-mapped",
           transferWarnings: expected.meta.transferWarnings,
 
-          // ✅ Sales KPIs (match OpsDashboardClient KPI type)
-          salesTodayByCurrency,
-          sales7dByCurrency,
-          sales30dByCurrency,
+          // ✅ Sales KPIs (canonical, cents) — matches OpsDashboardClient KPI type
+          salesTodayByCurrency: groupSalesByCurrency(salesTodayRows),
+          sales7dByCurrency: groupSalesByCurrency(sales7Rows),
+          sales30dByCurrency: groupSalesByCurrency(sales30Rows),
           sales30dByBusinessLine: Array.from(
-            sales30dByBusinessLineMap.entries(),
+            sales30dByBusinessLine.entries(),
           ).map(([business_line, amount_cents]) => ({
             business_line,
             amount_cents,
@@ -699,13 +695,13 @@ export default async function OpsDashboardPage() {
             created_at: r.created_at,
           })),
 
-          // ✅ Sales table source
+          // ✅ Sales daily series (cents)
           salesDaily: salesDaily.map((r) => ({
             day: r.day,
             business_line: String(r.business_line ?? ""),
             currency: String(r.currency ?? "UNKNOWN"),
-            amount_cents: Math.trunc(toNumber(r.amount_cents)),
-            sales_count: Math.trunc(toNumber(r.sales_count)),
+            amount_cents: Math.max(0, Math.trunc(toNumber(r.amount_cents))),
+            sales_count: Math.max(0, Math.trunc(toNumber(r.sales_count))),
           })),
         }}
       />
