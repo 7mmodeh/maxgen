@@ -206,6 +206,75 @@ async function getEntitlementBySubscriptionId(args: {
   return res.data ?? null;
 }
 
+/**
+ * Strong fallback when invoice lines do not expose price ids and subscription id is missing/unreliable.
+ * We pick the most likely monthly entitlement for the stripe customer.
+ */
+async function getCandidateMonthlyEntitlementForCustomer(args: {
+  stripeCustomerId: string;
+  userId: string;
+  stripeSubscriptionId: string | null;
+}): Promise<{ productKey: ProductKey; plan: Plan; stripeSubscriptionId: string | null } | null> {
+  const admin = getSupabaseAdmin();
+
+  // 1) If subscription id exists, try direct match first
+  if (args.stripeSubscriptionId) {
+    const direct = await admin
+      .from("entitlements")
+      .select("user_id,product_key,plan,stripe_subscription_id,updated_at")
+      .eq("user_id", args.userId)
+      .eq("stripe_customer_id", args.stripeCustomerId)
+      .eq("stripe_subscription_id", args.stripeSubscriptionId)
+      .eq("plan", "monthly")
+      .order("updated_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (!direct.error && direct.data) {
+      const pk = direct.data.product_key;
+      const pl = direct.data.plan;
+      const subId = direct.data.stripe_subscription_id ?? null;
+
+      if (typeof pk === "string" && typeof pl === "string") {
+        if (isProductKey(pk) && isPlan(pl)) {
+          return { productKey: pk, plan: pl, stripeSubscriptionId: subId };
+        }
+      }
+    }
+  }
+
+  // 2) Otherwise, find all monthly entitlements for this customer/user
+  const res = await admin
+    .from("entitlements")
+    .select("user_id,product_key,plan,stripe_subscription_id,updated_at")
+    .eq("user_id", args.userId)
+    .eq("stripe_customer_id", args.stripeCustomerId)
+    .eq("plan", "monthly")
+    .order("updated_at", { ascending: false });
+
+  if (res.error) {
+    console.error("getCandidateMonthlyEntitlementForCustomer error:", res.error);
+    return null;
+  }
+
+  const rows = res.data ?? [];
+  if (rows.length === 0) return null;
+
+  // If exactly one row, use it. If multiple, use the most recently updated.
+  const top = rows[0];
+  const pk = top.product_key;
+  const pl = top.plan;
+  const subId = top.stripe_subscription_id ?? null;
+
+  if (typeof pk === "string" && typeof pl === "string") {
+    if (isProductKey(pk) && isPlan(pl)) {
+      return { productKey: pk, plan: pl, stripeSubscriptionId: subId };
+    }
+  }
+
+  return null;
+}
+
 async function upsertEntitlement(args: {
   userId: string;
   productKey: ProductKey;
@@ -557,7 +626,7 @@ export async function POST(req: Request) {
 
         const invoiceSubscriptionId = getInvoiceSubscriptionId(expanded);
 
-        // Upsert entitlement(s) with canonical invoice paid fields
+        // Upsert entitlement(s) with canonical invoice paid fields (preferred path)
         for (const [k, cents] of perKey.entries()) {
           const meta = perKeyPlan.get(k);
           if (!meta) continue;
@@ -584,8 +653,7 @@ export async function POST(req: Request) {
           });
         }
 
-        // Fallback: if Stripe lines don't expose price ids (API variance),
-        // use subscription lookup to stamp the entitlement.
+        // Fallback A: subscription lookup (when invoice lines don't expose price ids)
         let fallbackProductKey: ProductKey | null = null;
 
         if (perKeyPlan.size === 0 && amountPaid && currency && invoiceSubscriptionId) {
@@ -627,14 +695,50 @@ export async function POST(req: Request) {
           }
         }
 
+        // Fallback B (critical): pick the most likely monthly entitlement for this customer/user
+        if (perKeyPlan.size === 0 && !fallbackProductKey && amountPaid && currency) {
+          const candidate = await getCandidateMonthlyEntitlementForCustomer({
+            stripeCustomerId,
+            userId,
+            stripeSubscriptionId: invoiceSubscriptionId,
+          });
+
+          if (candidate) {
+            fallbackProductKey = candidate.productKey;
+
+            await upsertEntitlement({
+              userId,
+              productKey: candidate.productKey,
+              plan: candidate.plan,
+              status: "active",
+              stripeCustomerId,
+              stripeSubscriptionId: candidate.stripeSubscriptionId,
+              stripePaymentIntentId: null,
+              expiresAt: null,
+              metadata: {
+                event: "invoice.paid",
+                invoice_id: invoiceId,
+                fallback: "customer_monthly_pick",
+              },
+              eventType: "invoice.paid",
+
+              amountCents: amountPaid,
+              currency,
+              paidAtIso,
+              stripeInvoiceId: invoiceId,
+            });
+          }
+        }
+
         // Single ledger entry for invoice paid amount (source-of-truth cash receipt)
         if (amountPaid && currency) {
-          // Decide business line (usually invoice is single product family)
           let bl: "company" | "qr_studio" = "company";
+
           for (const v of perKeyPlan.values()) {
             bl = businessLineFromProductKey(v.productKey);
             break;
           }
+
           if (perKeyPlan.size === 0 && fallbackProductKey) {
             bl = businessLineFromProductKey(fallbackProductKey);
           }
