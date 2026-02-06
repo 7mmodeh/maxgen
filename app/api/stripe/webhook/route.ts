@@ -73,12 +73,23 @@ function businessLineFromProductKey(pk: ProductKey): "company" | "qr_studio" {
  * Stripe typings can differ by API version; access price id safely.
  */
 function getInvoiceLinePriceId(line: Stripe.InvoiceLineItem): string | null {
+  // Stripe may return line.price as:
+  // 1) string: "price_..."
+  // 2) object: { id: "price_..." }
   const maybe = line as unknown as { price?: unknown };
-  const price = maybe.price as unknown;
-  if (!price || typeof price !== "object") return null;
 
-  const pid = (price as { id?: unknown }).id;
-  return typeof pid === "string" ? pid : null;
+  const p = maybe.price;
+
+  if (typeof p === "string") {
+    return p;
+  }
+
+  if (p && typeof p === "object") {
+    const pid = (p as { id?: unknown }).id;
+    return typeof pid === "string" ? pid : null;
+  }
+
+  return null;
 }
 
 /**
