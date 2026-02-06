@@ -3,6 +3,12 @@
 import Link from "next/link";
 import { useMemo } from "react";
 
+type SalesByCurrency = Array<{ currency: string; amount_cents: number }>;
+type SalesByBusinessLine = Array<{
+  business_line: string;
+  amount_cents: number;
+}>;
+
 type KPI = {
   activeAccounts: number;
   archivedAccounts: number;
@@ -22,6 +28,14 @@ type KPI = {
 
   ledgerSignedMode: "signed" | "unsigned-mapped";
   transferWarnings: number;
+
+  // ✅ Sales KPIs (canonical, cents)
+  salesTodayByCurrency: SalesByCurrency;
+  sales7dByCurrency: SalesByCurrency;
+  sales30dByCurrency: SalesByCurrency;
+
+  // Optional breakdowns (if you want to surface later)
+  sales30dByBusinessLine: SalesByBusinessLine;
 };
 
 type Props = {
@@ -74,6 +88,15 @@ type Props = {
       notes: string | null;
       created_at: string;
     }>;
+
+    // ✅ Sales section (last 30 days, grouped)
+    salesDaily: Array<{
+      day: string; // YYYY-MM-DD
+      business_line: string; // "company" | "qr_studio" | "supplies" (or future)
+      currency: string; // e.g. "eur"
+      amount_cents: number;
+      sales_count: number;
+    }>;
   };
 };
 
@@ -98,6 +121,11 @@ function formatMoney(value: number, currency?: string): string {
   }).format(n);
 }
 
+function formatMoneyFromCents(cents: number, currency?: string): string {
+  const v = Number.isFinite(cents) ? cents : 0;
+  return formatMoney(v / 100, currency);
+}
+
 function pillClass(status: string): string {
   const s = String(status || "").toLowerCase();
   if (s === "overdue") return "bg-red-500/10 text-red-700 border-red-500/20";
@@ -107,6 +135,19 @@ function pillClass(status: string): string {
   return "bg-black/5 text-black/70 border-black/10";
 }
 
+function formatCurrencyLabel(input: string): string {
+  const c = String(input || "").trim();
+  if (!c) return "UNKNOWN";
+  return c.toUpperCase();
+}
+
+function sumCentsByCurrency(rows: SalesByCurrency): number {
+  let sum = 0;
+  for (const r of rows)
+    sum += Number.isFinite(r.amount_cents) ? r.amount_cents : 0;
+  return sum;
+}
+
 export default function OpsDashboardClient({ kpis, sections }: Props) {
   const accountById = useMemo(() => {
     const m = new Map<string, { name: string; currency: string }>();
@@ -114,6 +155,19 @@ export default function OpsDashboardClient({ kpis, sections }: Props) {
       m.set(a.id, { name: a.name, currency: a.currency });
     return m;
   }, [sections.accounts]);
+
+  const salesTodayTotalCents = useMemo(
+    () => sumCentsByCurrency(kpis.salesTodayByCurrency),
+    [kpis.salesTodayByCurrency],
+  );
+  const sales7dTotalCents = useMemo(
+    () => sumCentsByCurrency(kpis.sales7dByCurrency),
+    [kpis.sales7dByCurrency],
+  );
+  const sales30dTotalCents = useMemo(
+    () => sumCentsByCurrency(kpis.sales30dByCurrency),
+    [kpis.sales30dByCurrency],
+  );
 
   return (
     <div className="mt-8 space-y-10">
@@ -198,6 +252,143 @@ export default function OpsDashboardClient({ kpis, sections }: Props) {
             </Link>
           </div>
         </div>
+
+        {/* ✅ Sales KPIs (added; existing KPI cards untouched) */}
+        <div className="rounded-xl border p-5">
+          <div className="text-xs opacity-70">Sales (today)</div>
+          <div className="mt-2 text-2xl font-semibold">
+            {kpis.salesTodayByCurrency.length > 0
+              ? formatMoneyFromCents(salesTodayTotalCents)
+              : "—"}
+          </div>
+          <div className="mt-2 space-y-1">
+            {kpis.salesTodayByCurrency.slice(0, 3).map((x) => (
+              <div
+                key={x.currency}
+                className="flex items-baseline justify-between gap-3"
+              >
+                <div className="text-xs opacity-70">
+                  {formatCurrencyLabel(x.currency)}
+                </div>
+                <div className="text-sm font-semibold">
+                  {formatMoneyFromCents(x.amount_cents, x.currency)}
+                </div>
+              </div>
+            ))}
+            {kpis.salesTodayByCurrency.length === 0 ? (
+              <div className="text-sm opacity-70">No sales recorded</div>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="rounded-xl border p-5">
+          <div className="text-xs opacity-70">Sales (last 7 days)</div>
+          <div className="mt-2 text-2xl font-semibold">
+            {kpis.sales7dByCurrency.length > 0
+              ? formatMoneyFromCents(sales7dTotalCents)
+              : "—"}
+          </div>
+          <div className="mt-2 space-y-1">
+            {kpis.sales7dByCurrency.slice(0, 3).map((x) => (
+              <div
+                key={x.currency}
+                className="flex items-baseline justify-between gap-3"
+              >
+                <div className="text-xs opacity-70">
+                  {formatCurrencyLabel(x.currency)}
+                </div>
+                <div className="text-sm font-semibold">
+                  {formatMoneyFromCents(x.amount_cents, x.currency)}
+                </div>
+              </div>
+            ))}
+            {kpis.sales7dByCurrency.length === 0 ? (
+              <div className="text-sm opacity-70">No sales recorded</div>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="rounded-xl border p-5">
+          <div className="text-xs opacity-70">Sales (last 30 days)</div>
+          <div className="mt-2 text-2xl font-semibold">
+            {kpis.sales30dByCurrency.length > 0
+              ? formatMoneyFromCents(sales30dTotalCents)
+              : "—"}
+          </div>
+          <div className="mt-2 space-y-1">
+            {kpis.sales30dByCurrency.slice(0, 3).map((x) => (
+              <div
+                key={x.currency}
+                className="flex items-baseline justify-between gap-3"
+              >
+                <div className="text-xs opacity-70">
+                  {formatCurrencyLabel(x.currency)}
+                </div>
+                <div className="text-sm font-semibold">
+                  {formatMoneyFromCents(x.amount_cents, x.currency)}
+                </div>
+              </div>
+            ))}
+            {kpis.sales30dByCurrency.length === 0 ? (
+              <div className="text-sm opacity-70">No sales recorded</div>
+            ) : null}
+          </div>
+          <div className="mt-3 text-[11px] opacity-70">
+            Canonical source: paid_at + amount_cents (Presence orders / QR
+            entitlements / Supplies sales)
+          </div>
+        </div>
+      </section>
+
+      {/* ✅ Sales section (added directly below KPIs) */}
+      <section className="rounded-xl border p-6">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <div className="text-sm font-semibold">Sales (last 30 days)</div>
+            <div className="mt-1 text-xs opacity-70">
+              Daily rollup by business line + currency (canonical paid records).
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-4 overflow-auto rounded-xl border">
+          <table className="w-full text-sm">
+            <thead className="border-b bg-black/[0.02]">
+              <tr className="text-left">
+                <th className="p-3">Day</th>
+                <th className="p-3">Business line</th>
+                <th className="p-3">Currency</th>
+                <th className="p-3">Sales</th>
+                <th className="p-3">Count</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sections.salesDaily.map((r) => (
+                <tr
+                  key={`${r.day}__${r.business_line}__${r.currency}`}
+                  className="border-b last:border-b-0"
+                >
+                  <td className="p-3 whitespace-nowrap">{r.day}</td>
+                  <td className="p-3">{r.business_line}</td>
+                  <td className="p-3 whitespace-nowrap">
+                    {formatCurrencyLabel(r.currency)}
+                  </td>
+                  <td className="p-3 whitespace-nowrap">
+                    {formatMoneyFromCents(r.amount_cents, r.currency)}
+                  </td>
+                  <td className="p-3 whitespace-nowrap">{r.sales_count}</td>
+                </tr>
+              ))}
+              {sections.salesDaily.length === 0 ? (
+                <tr>
+                  <td className="p-4 opacity-80" colSpan={5}>
+                    No sales in the last 30 days.
+                  </td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
+        </div>
       </section>
 
       {/* Upcoming */}
@@ -248,7 +439,9 @@ export default function OpsDashboardClient({ kpis, sections }: Props) {
                     </td>
                     <td className="p-3">
                       <span
-                        className={`inline-flex rounded-full border px-2 py-1 text-xs ${pillClass(r.computed_status)}`}
+                        className={`inline-flex rounded-full border px-2 py-1 text-xs ${pillClass(
+                          r.computed_status,
+                        )}`}
                       >
                         {r.computed_status}
                       </span>
@@ -316,7 +509,9 @@ export default function OpsDashboardClient({ kpis, sections }: Props) {
                     </td>
                     <td className="p-3">
                       <span
-                        className={`inline-flex rounded-full border px-2 py-1 text-xs ${pillClass(r.computed_status)}`}
+                        className={`inline-flex rounded-full border px-2 py-1 text-xs ${pillClass(
+                          r.computed_status,
+                        )}`}
                       >
                         {r.computed_status}
                       </span>

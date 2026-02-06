@@ -1,5 +1,3 @@
-// app/ops/page.tsx
-
 import Link from "next/link";
 import { supabaseServer } from "@/src/lib/supabase/server";
 import { getSupabaseAdmin } from "@/src/lib/supabase-admin";
@@ -78,7 +76,13 @@ type ReserveBucketRow = {
   updated_at: string;
 };
 
-type IdOnlyRow = { id: string };
+type SalesDailyRollupRow = {
+  day: string; // date
+  business_line: string; // business_line enum
+  currency: string | null; // may be null if unknown
+  amount_cents: number | string | null; // int/bigint -> might come as string depending on client
+  sales_count: number | string | null; // optional
+};
 
 function toNumber(v: string | number | null | undefined): number {
   if (v === null || v === undefined) return 0;
@@ -103,10 +107,6 @@ function daysAgoIso(days: number): string {
   return isoDate(d);
 }
 
-/**
- * Fetch all rows from a table/view in pages (avoids PostgREST default limits).
- * Keeps types strict and avoids `any`.
- */
 async function fetchAll<T>(
   admin: ReturnType<typeof getSupabaseAdmin>,
   table: string,
@@ -121,8 +121,6 @@ async function fetchAll<T>(
   const out: T[] = [];
 
   for (;;) {
-    // NOTE: We keep `q` as the chained builder returned by supabase-js.
-    // The exact generic type is complex; we avoid `any` by letting TS infer it.
     let q = admin
       .from(table)
       .select(select)
@@ -136,7 +134,6 @@ async function fetchAll<T>(
 
     const res = await q;
     if (res.error) throw new Error(res.error.message);
-
     const rows = (res.data as T[] | null) ?? [];
     out.push(...rows);
 
@@ -225,13 +222,13 @@ function computeSignedLedger(entries: LedgerEntryRow[]): {
       continue;
     }
 
-    // adjustment: in unsigned mode, treat as + (unless you later record negative adjustments)
+    // adjustment: allow negative if supplied, otherwise treat as + (since unsigned mode)
     if (e.entry_type === "adjustment") {
       signedById.set(e.id, amt);
       continue;
     }
 
-    // Unknown types (should not happen): treat as +.
+    // Unknown types (should not happen): treat as +, but safe.
     signedById.set(e.id, amt);
   }
 
@@ -312,6 +309,7 @@ function computeReserves(
       reserved = toNumber(b.fixed_amount);
     } else if (kind === "percentage") {
       const raw = toNumber(b.percentage);
+      // Robust: allow 10 (meaning 10%) or 0.10 (meaning 10%)
       const pct = raw > 1 ? raw / 100 : raw;
       reserved = expectedCashTotal * pct;
     } else {
@@ -330,6 +328,27 @@ function computeReserves(
   }
 
   return { perBucketReserved, totalReserved };
+}
+
+/**
+ * Aggregate sales_cents by currency from sales rollup rows.
+ * - Ignores negative amounts (safety)
+ * - Normalizes null/empty currency to "UNKNOWN"
+ */
+function salesByCurrency(rows: SalesDailyRollupRow[]): Array<{
+  currency: string;
+  amount_cents: number;
+}> {
+  const m = new Map<string, number>();
+  for (const r of rows) {
+    const cur = String(r.currency ?? "").trim() || "UNKNOWN";
+    const amt = Math.max(0, Math.trunc(toNumber(r.amount_cents)));
+    m.set(cur, (m.get(cur) ?? 0) + amt);
+  }
+  return Array.from(m.entries()).map(([currency, amount_cents]) => ({
+    currency,
+    amount_cents,
+  }));
 }
 
 export default async function OpsDashboardPage() {
@@ -437,7 +456,10 @@ export default async function OpsDashboardPage() {
       "created_at",
       "notes",
     ].join(","),
-    { orderBy: { column: "created_at", ascending: true }, pageSize: 1000 },
+    {
+      orderBy: { column: "created_at", ascending: true },
+      pageSize: 1000,
+    },
   );
 
   const expected = computeExpectedCashByAccount(accounts, ledgerEntries);
@@ -468,9 +490,10 @@ export default async function OpsDashboardPage() {
 
   const calendarUpcoming =
     (calendarUpcomingRes.data as CalendarStatusRow[] | null) ?? [];
-  const calendarOverdueCount = (
-    (calendarOverdueRes.data as IdOnlyRow[] | null) ?? []
-  ).length;
+
+  const calendarOverdueCount = Array.isArray(calendarOverdueRes.data)
+    ? calendarOverdueRes.data.length
+    : 0;
 
   const expensesUpcomingRes = await admin
     .from("ops_expenses_status")
@@ -489,10 +512,12 @@ export default async function OpsDashboardPage() {
 
   const expensesUpcoming =
     (expensesUpcomingRes.data as ExpenseStatusRow[] | null) ?? [];
-  const expensesOverdueCount = (
-    (expensesOverdueRes.data as IdOnlyRow[] | null) ?? []
-  ).length;
 
+  const expensesOverdueCount = Array.isArray(expensesOverdueRes.data)
+    ? expensesOverdueRes.data.length
+    : 0;
+
+  // Expected spend next 30
   const expectedSpendNext30 = expensesUpcoming.reduce(
     (sum, r) => sum + toNumber(r.amount_expected),
     0,
@@ -522,6 +547,41 @@ export default async function OpsDashboardPage() {
     .limit(20);
 
   const recent = (recentRes.data as LedgerEntryRow[] | null) ?? [];
+
+  // -------------------------
+  // SALES (OPS-LEDGER-02D)
+  // -------------------------
+  const salesSince30 = daysAgoIso(30);
+  const sales7Since = daysAgoIso(7);
+
+  const sales30Res = await admin
+    .from("ops_sales_daily_rollup")
+    .select("day,business_line,currency,amount_cents,sales_count")
+    .gte("day", salesSince30)
+    .lte("day", today)
+    .order("day", { ascending: true });
+
+  const salesDaily = (sales30Res.data as SalesDailyRollupRow[] | null) ?? [];
+
+  const salesTodayRows = salesDaily.filter((r) => r.day === today);
+  const sales7Rows = salesDaily.filter(
+    (r) => r.day >= sales7Since && r.day <= today,
+  );
+  const sales30Rows = salesDaily;
+
+  const salesTodayByCurrency = salesByCurrency(salesTodayRows);
+  const sales7dByCurrency = salesByCurrency(sales7Rows);
+  const sales30dByCurrency = salesByCurrency(sales30Rows);
+
+  const sales30dByBusinessLineMap = new Map<string, number>();
+  for (const r of sales30Rows) {
+    const bl = String(r.business_line ?? "").trim() || "unknown";
+    const amt = Math.max(0, Math.trunc(toNumber(r.amount_cents)));
+    sales30dByBusinessLineMap.set(
+      bl,
+      (sales30dByBusinessLineMap.get(bl) ?? 0) + amt,
+    );
+  }
 
   const currencies = Array.from(expected.totalsByCurrency.keys());
   const multiCurrency = currencies.filter((c) => c !== "UNKNOWN").length > 1;
@@ -585,6 +645,17 @@ export default async function OpsDashboardPage() {
             ? "signed"
             : "unsigned-mapped",
           transferWarnings: expected.meta.transferWarnings,
+
+          // ✅ Sales KPIs (match OpsDashboardClient KPI type)
+          salesTodayByCurrency,
+          sales7dByCurrency,
+          sales30dByCurrency,
+          sales30dByBusinessLine: Array.from(
+            sales30dByBusinessLineMap.entries(),
+          ).map(([business_line, amount_cents]) => ({
+            business_line,
+            amount_cents,
+          })),
         }}
         sections={{
           accounts: accounts.map((a) => ({
@@ -626,6 +697,15 @@ export default async function OpsDashboardPage() {
             payment_method: r.payment_method,
             notes: r.notes,
             created_at: r.created_at,
+          })),
+
+          // ✅ Sales table source
+          salesDaily: salesDaily.map((r) => ({
+            day: r.day,
+            business_line: String(r.business_line ?? ""),
+            currency: String(r.currency ?? "UNKNOWN"),
+            amount_cents: Math.trunc(toNumber(r.amount_cents)),
+            sales_count: Math.trunc(toNumber(r.sales_count)),
           })),
         }}
       />
