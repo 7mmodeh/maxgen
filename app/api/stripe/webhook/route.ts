@@ -29,33 +29,6 @@ async function rawBody(req: Request): Promise<Buffer> {
   return Buffer.from(ab);
 }
 
-function isRecord(x: unknown): x is Record<string, unknown> {
-  return typeof x === "object" && x !== null;
-}
-
-function getIdFromStringOrObject(value: unknown): string | null {
-  if (typeof value === "string") return value;
-  if (isRecord(value)) {
-    const id = value["id"];
-    return typeof id === "string" ? id : null;
-  }
-  return null;
-}
-
-function isProductKey(v: string): v is ProductKey {
-  return (
-    v === "presence_basic" ||
-    v === "presence_booking" ||
-    v === "presence_seo" ||
-    v === "qr_studio" ||
-    v === "qr_print_pack"
-  );
-}
-
-function isPlan(v: string): v is Plan {
-  return v === "monthly" || v === "onetime";
-}
-
 async function resolveUserIdFromCustomer(
   stripeCustomerId: string,
 ): Promise<string | null> {
@@ -91,63 +64,171 @@ function tryGetCurrentPeriodEndIso(sub: Stripe.Subscription): string | null {
 }
 
 function businessLineFromProductKey(pk: ProductKey): "company" | "qr_studio" {
-  // presence_* => company, qr_* => qr_studio
   if (pk.startsWith("presence_")) return "company";
   return "qr_studio";
 }
 
 /**
- * Stripe typings + API versions can vary:
- * InvoiceLineItem may expose price id in multiple locations.
- *
- * We attempt, safely:
- * - line.price (string or object with id)
- * - line.plan (string or object with id)   (legacy)
- * - line.pricing.price (string or object with id) (newer variants)
+ * Stripe typings can differ by API version; access price id safely.
  */
 function getInvoiceLinePriceId(line: Stripe.InvoiceLineItem): string | null {
-  const rec = line as unknown as Record<string, unknown>;
+  // Stripe may return line.price as:
+  // 1) string: "price_..."
+  // 2) object: { id: "price_..." }
+  const maybe = line as unknown as { price?: unknown };
+  const p = maybe.price;
 
-  // 1) price
-  if ("price" in rec) {
-    const pid = getIdFromStringOrObject(rec["price"]);
-    if (pid) return pid;
-  }
+  if (typeof p === "string") return p;
 
-  // 2) plan (legacy)
-  if ("plan" in rec) {
-    const pid = getIdFromStringOrObject(rec["plan"]);
-    if (pid) return pid;
-  }
-
-  // 3) pricing.price (some API versions)
-  if ("pricing" in rec && isRecord(rec["pricing"])) {
-    const pricing = rec["pricing"];
-    if ("price" in pricing) {
-      const pid = getIdFromStringOrObject(pricing["price"]);
-      if (pid) return pid;
-    }
+  if (p && typeof p === "object") {
+    const pid = (p as { id?: unknown }).id;
+    return typeof pid === "string" ? pid : null;
   }
 
   return null;
 }
 
 /**
- * Stripe invoice subscription can be string or expanded object.
+ * Stripe typings can differ by API version; access subscription safely.
  */
 function getInvoiceSubscriptionId(invoice: Stripe.Invoice): string | null {
-  const rec = invoice as unknown as Record<string, unknown>;
-  if (!("subscription" in rec)) return null;
-  return getIdFromStringOrObject(rec["subscription"]);
+  const maybe = invoice as unknown as { subscription?: unknown };
+  const sub = maybe.subscription;
+  return typeof sub === "string" ? sub : null;
 }
 
 /**
- * Stripe invoice customer can be string or expanded object.
+ * Extract Stripe IDs from a generic event object safely.
  */
-function getInvoiceCustomerId(invoice: Stripe.Invoice): string | null {
-  const rec = invoice as unknown as Record<string, unknown>;
-  if (!("customer" in rec)) return null;
-  return getIdFromStringOrObject(rec["customer"]);
+function extractStripeIdsFromEvent(
+  event: Stripe.Event,
+): {
+  stripeCustomerId: string | null;
+  stripeSubscriptionId: string | null;
+  stripeInvoiceId: string | null;
+  stripePaymentIntentId: string | null;
+  currency: string | null;
+  amountCents: number | null;
+  priceIds: string[] | null;
+} {
+  const obj = event.data.object as unknown;
+
+  let stripeCustomerId: string | null = null;
+  let stripeSubscriptionId: string | null = null;
+  let stripeInvoiceId: string | null = null;
+  let stripePaymentIntentId: string | null = null;
+  let currency: string | null = null;
+  let amountCents: number | null = null;
+  let priceIds: string[] | null = null;
+
+  if (obj && typeof obj === "object") {
+    const o = obj as Record<string, unknown>;
+
+    const customer = o["customer"];
+    if (typeof customer === "string") stripeCustomerId = customer;
+
+    const subscription = o["subscription"];
+    if (typeof subscription === "string") stripeSubscriptionId = subscription;
+
+    const id = o["id"];
+    if (typeof id === "string") {
+      if (event.type.startsWith("invoice.")) stripeInvoiceId = id;
+      if (event.type === "payment_intent.succeeded") stripePaymentIntentId = id;
+    }
+
+    const paymentIntent = o["payment_intent"];
+    if (typeof paymentIntent === "string") stripePaymentIntentId = paymentIntent;
+
+    const cur = o["currency"];
+    if (typeof cur === "string") currency = cur;
+
+    // invoice.paid / invoice.payment_succeeded style
+    const amountPaid = o["amount_paid"];
+    if (typeof amountPaid === "number") amountCents = amountPaid;
+
+    // checkout.session.completed style
+    const amountTotal = o["amount_total"];
+    if (typeof amountTotal === "number") amountCents = amountTotal;
+  }
+
+  // For invoice.* events, best-effort pull price_ids (if present)
+  if (event.type.startsWith("invoice.")) {
+    const inv = event.data.object as unknown as { lines?: unknown };
+    const lines = inv.lines;
+    if (lines && typeof lines === "object") {
+      const ld = lines as { data?: unknown };
+      const data = ld.data;
+      if (Array.isArray(data)) {
+        const ids: string[] = [];
+        for (const item of data) {
+          if (!item || typeof item !== "object") continue;
+          const it = item as Record<string, unknown>;
+          const price = it["price"];
+          if (typeof price === "string") {
+            ids.push(price);
+            continue;
+          }
+          if (price && typeof price === "object") {
+            const pid = (price as { id?: unknown }).id;
+            if (typeof pid === "string") ids.push(pid);
+          }
+        }
+        priceIds = ids.length > 0 ? ids : null;
+      }
+    }
+  }
+
+  return {
+    stripeCustomerId,
+    stripeSubscriptionId,
+    stripeInvoiceId,
+    stripePaymentIntentId,
+    currency,
+    amountCents,
+    priceIds,
+  };
+}
+
+/**
+ * Persist every webhook event (idempotent by event_id pre-check).
+ */
+async function persistWebhookEvent(event: Stripe.Event): Promise<void> {
+  const admin = getSupabaseAdmin();
+
+  const existing = await admin
+    .from("ops_stripe_webhook_events")
+    .select("id")
+    .eq("event_id", event.id)
+    .maybeSingle();
+
+  if (existing.data?.id) return;
+
+  const extracted = extractStripeIdsFromEvent(event);
+
+  const payload = {
+    id: event.id,
+    type: event.type,
+    created: event.created,
+    livemode: event.livemode,
+    data: event.data,
+  };
+
+  const insertRes = await admin.from("ops_stripe_webhook_events").insert({
+    event_id: event.id,
+    event_type: event.type,
+    stripe_customer_id: extracted.stripeCustomerId,
+    stripe_subscription_id: extracted.stripeSubscriptionId,
+    stripe_invoice_id: extracted.stripeInvoiceId,
+    stripe_payment_intent_id: extracted.stripePaymentIntentId,
+    currency: extracted.currency,
+    amount_cents: extracted.amountCents,
+    price_ids: extracted.priceIds, // text[]
+    payload,
+  });
+
+  if (insertRes.error) {
+    console.error("ops_stripe_webhook_events insert error:", insertRes.error);
+  }
 }
 
 /**
@@ -206,75 +287,6 @@ async function getEntitlementBySubscriptionId(args: {
   return res.data ?? null;
 }
 
-/**
- * Strong fallback when invoice lines do not expose price ids and subscription id is missing/unreliable.
- * We pick the most likely monthly entitlement for the stripe customer.
- */
-async function getCandidateMonthlyEntitlementForCustomer(args: {
-  stripeCustomerId: string;
-  userId: string;
-  stripeSubscriptionId: string | null;
-}): Promise<{ productKey: ProductKey; plan: Plan; stripeSubscriptionId: string | null } | null> {
-  const admin = getSupabaseAdmin();
-
-  // 1) If subscription id exists, try direct match first
-  if (args.stripeSubscriptionId) {
-    const direct = await admin
-      .from("entitlements")
-      .select("user_id,product_key,plan,stripe_subscription_id,updated_at")
-      .eq("user_id", args.userId)
-      .eq("stripe_customer_id", args.stripeCustomerId)
-      .eq("stripe_subscription_id", args.stripeSubscriptionId)
-      .eq("plan", "monthly")
-      .order("updated_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    if (!direct.error && direct.data) {
-      const pk = direct.data.product_key;
-      const pl = direct.data.plan;
-      const subId = direct.data.stripe_subscription_id ?? null;
-
-      if (typeof pk === "string" && typeof pl === "string") {
-        if (isProductKey(pk) && isPlan(pl)) {
-          return { productKey: pk, plan: pl, stripeSubscriptionId: subId };
-        }
-      }
-    }
-  }
-
-  // 2) Otherwise, find all monthly entitlements for this customer/user
-  const res = await admin
-    .from("entitlements")
-    .select("user_id,product_key,plan,stripe_subscription_id,updated_at")
-    .eq("user_id", args.userId)
-    .eq("stripe_customer_id", args.stripeCustomerId)
-    .eq("plan", "monthly")
-    .order("updated_at", { ascending: false });
-
-  if (res.error) {
-    console.error("getCandidateMonthlyEntitlementForCustomer error:", res.error);
-    return null;
-  }
-
-  const rows = res.data ?? [];
-  if (rows.length === 0) return null;
-
-  // If exactly one row, use it. If multiple, use the most recently updated.
-  const top = rows[0];
-  const pk = top.product_key;
-  const pl = top.plan;
-  const subId = top.stripe_subscription_id ?? null;
-
-  if (typeof pk === "string" && typeof pl === "string") {
-    if (isProductKey(pk) && isPlan(pl)) {
-      return { productKey: pk, plan: pl, stripeSubscriptionId: subId };
-    }
-  }
-
-  return null;
-}
-
 async function upsertEntitlement(args: {
   userId: string;
   productKey: ProductKey;
@@ -285,8 +297,7 @@ async function upsertEntitlement(args: {
   stripePaymentIntentId: string | null;
   expiresAt: string | null;
   metadata: Record<string, unknown>;
-  eventType: string; // for metadata merge
-  // canonical paid fields
+  eventType: string;
   amountCents: number | null;
   currency: string | null;
   paidAtIso: string | null;
@@ -295,7 +306,6 @@ async function upsertEntitlement(args: {
   const admin = getSupabaseAdmin();
   const now = new Date().toISOString();
 
-  // ✅ metadata merge: preserve context
   const existing = await getExistingEntitlement({
     userId: args.userId,
     productKey: args.productKey,
@@ -315,7 +325,6 @@ async function upsertEntitlement(args: {
     last_event_at: now,
   };
 
-  // ✅ Base payload (never includes paid snapshot fields unless provided)
   const payload: Record<string, unknown> = {
     user_id: args.userId,
     product_key: args.productKey,
@@ -328,7 +337,7 @@ async function upsertEntitlement(args: {
     updated_at: now,
   };
 
-  // ✅ Never wipe paid snapshot fields on non-paid events
+  // Never wipe paid snapshot fields on non-paid events
   if (args.stripePaymentIntentId !== null) {
     payload["stripe_payment_intent_id"] = args.stripePaymentIntentId;
   }
@@ -349,14 +358,16 @@ async function upsertEntitlement(args: {
     .from("entitlements")
     .upsert(payload, { onConflict: "user_id,product_key,plan" });
 
-  if (error) console.error("entitlements upsert error:", error);
+  if (error) {
+    console.error("entitlements upsert error:", error);
+    console.error("entitlements upsert payload:", payload);
+  }
 }
 
 async function upsertPresenceOrder(args: {
   userId: string;
   packageKey: "basic" | "booking" | "seo";
   checkoutSessionId: string;
-  // paid-only canonical
   amountCents: number | null;
   currency: string | null;
   paidAtIso: string | null;
@@ -375,8 +386,6 @@ async function upsertPresenceOrder(args: {
         onboarding: {},
         stripe_checkout_session_id: args.checkoutSessionId,
         updated_at: now,
-
-        // paid-only canonical fields
         amount_cents: args.amountCents,
         currency: args.currency,
         paid_at: args.paidAtIso,
@@ -393,16 +402,15 @@ async function ensureStripeLedgerEntry(args: {
   bankAccountId: string;
   userId: string;
   businessLine: "company" | "qr_studio";
-  effectiveDateIso: string; // YYYY-MM-DD
-  amountCents: number; // positive (inflow)
+  effectiveDateIso: string;
+  amountCents: number;
   currency: string;
-  relatedId: string; // invoice_id or payment_intent_id
+  relatedId: string;
   notes: string;
   tags?: string[];
 }) {
   const admin = getSupabaseAdmin();
 
-  // Idempotent by unique index on (related_entity_type, related_entity_id) where type='stripe'
   const exists = await admin
     .from("ops_ledger_entries")
     .select("id")
@@ -417,7 +425,7 @@ async function ensureStripeLedgerEntry(args: {
   const ins = await admin.from("ops_ledger_entries").insert({
     effective_date: args.effectiveDateIso,
     bank_account_id: args.bankAccountId,
-    amount: amt, // numeric
+    amount: amt,
     entry_type: "customer_payment",
     category: "general",
     business_line: args.businessLine,
@@ -454,6 +462,9 @@ export async function POST(req: Request) {
     console.error("Webhook signature verification failed:", msg);
     return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
   }
+
+  // ✅ Always persist first so ops_stripe_webhook_latest_invoice can work
+  await persistWebhookEvent(event);
 
   const OPS_MAIN_BANK_ACCOUNT_ID = assertEnv("OPS_MAIN_BANK_ACCOUNT_ID");
 
@@ -507,8 +518,7 @@ export async function POST(req: Request) {
 
           if (!presencePackage) {
             if (productKey === "presence_basic") presencePackage = "basic";
-            else if (productKey === "presence_booking")
-              presencePackage = "booking";
+            else if (productKey === "presence_booking") presencePackage = "booking";
             else if (productKey === "presence_seo") presencePackage = "seo";
           }
 
@@ -531,7 +541,6 @@ export async function POST(req: Request) {
               price_id: priceId,
             },
             eventType: "checkout.session.completed",
-
             amountCents: plan === "onetime" ? lineAmountTotal : null,
             currency: plan === "onetime" ? currency : null,
             paidAtIso: plan === "onetime" ? paidAtIso : null,
@@ -557,8 +566,7 @@ export async function POST(req: Request) {
             0,
             10,
           );
-          const bl =
-            anyBusinessLine ?? (presencePackage ? "company" : "qr_studio");
+          const bl = anyBusinessLine ?? (presencePackage ? "company" : "qr_studio");
 
           await ensureStripeLedgerEntry({
             bankAccountId: OPS_MAIN_BANK_ACCOUNT_ID,
@@ -579,7 +587,8 @@ export async function POST(req: Request) {
       case "invoice.paid": {
         const invoice = event.data.object as Stripe.Invoice;
 
-        const stripeCustomerId = getInvoiceCustomerId(invoice);
+        const stripeCustomerId =
+          typeof invoice.customer === "string" ? invoice.customer : null;
         if (!stripeCustomerId) break;
 
         const userId = await resolveUserIdFromCustomer(stripeCustomerId);
@@ -598,14 +607,11 @@ export async function POST(req: Request) {
           typeof invoice.amount_paid === "number" ? invoice.amount_paid : null;
 
         const expanded = await stripe.invoices.retrieve(invoiceId, {
-          expand: ["lines.data.price", "lines.data.plan", "subscription"],
+          expand: ["lines.data.price"],
         });
 
         const perKey = new Map<string, number>();
-        const perKeyPlan = new Map<
-          string,
-          { productKey: ProductKey; plan: Plan }
-        >();
+        const perKeyPlan = new Map<string, { productKey: ProductKey; plan: Plan }>();
 
         for (const line of expanded.lines.data) {
           const priceId = getInvoiceLinePriceId(line);
@@ -615,7 +621,6 @@ export async function POST(req: Request) {
           const plan = planFromPriceId(priceId);
           if (!productKey || !plan) continue;
 
-          // Only care about monthly items from invoices
           if (plan !== "monthly") continue;
 
           const key = `${productKey}__${plan}`;
@@ -626,7 +631,6 @@ export async function POST(req: Request) {
 
         const invoiceSubscriptionId = getInvoiceSubscriptionId(expanded);
 
-        // Upsert entitlement(s) with canonical invoice paid fields (preferred path)
         for (const [k, cents] of perKey.entries()) {
           const meta = perKeyPlan.get(k);
           if (!meta) continue;
@@ -640,12 +644,8 @@ export async function POST(req: Request) {
             stripeSubscriptionId: invoiceSubscriptionId,
             stripePaymentIntentId: null,
             expiresAt: null,
-            metadata: {
-              event: "invoice.paid",
-              invoice_id: invoiceId,
-            },
+            metadata: { event: "invoice.paid", invoice_id: invoiceId },
             eventType: "invoice.paid",
-
             amountCents: cents > 0 ? cents : null,
             currency,
             paidAtIso,
@@ -653,7 +653,6 @@ export async function POST(req: Request) {
           });
         }
 
-        // Fallback A: subscription lookup (when invoice lines don't expose price ids)
         let fallbackProductKey: ProductKey | null = null;
 
         if (perKeyPlan.size === 0 && amountPaid && currency && invoiceSubscriptionId) {
@@ -666,71 +665,35 @@ export async function POST(req: Request) {
             const pl = ent.plan;
 
             if (typeof pk === "string" && typeof pl === "string") {
-              if (isProductKey(pk) && isPlan(pl)) {
-                fallbackProductKey = pk;
+              const productKey = pk as ProductKey;
+              const plan = pl as Plan;
 
-                await upsertEntitlement({
-                  userId,
-                  productKey: pk,
-                  plan: pl,
-                  status: "active",
-                  stripeCustomerId,
-                  stripeSubscriptionId: invoiceSubscriptionId,
-                  stripePaymentIntentId: null,
-                  expiresAt: null,
-                  metadata: {
-                    event: "invoice.paid",
-                    invoice_id: invoiceId,
-                    fallback: "subscription_lookup",
-                  },
-                  eventType: "invoice.paid",
+              fallbackProductKey = productKey;
 
-                  amountCents: amountPaid,
-                  currency,
-                  paidAtIso,
-                  stripeInvoiceId: invoiceId,
-                });
-              }
+              await upsertEntitlement({
+                userId,
+                productKey,
+                plan,
+                status: "active",
+                stripeCustomerId,
+                stripeSubscriptionId: invoiceSubscriptionId,
+                stripePaymentIntentId: null,
+                expiresAt: null,
+                metadata: {
+                  event: "invoice.paid",
+                  invoice_id: invoiceId,
+                  fallback: "subscription_lookup",
+                },
+                eventType: "invoice.paid",
+                amountCents: amountPaid,
+                currency,
+                paidAtIso,
+                stripeInvoiceId: invoiceId,
+              });
             }
           }
         }
 
-        // Fallback B (critical): pick the most likely monthly entitlement for this customer/user
-        if (perKeyPlan.size === 0 && !fallbackProductKey && amountPaid && currency) {
-          const candidate = await getCandidateMonthlyEntitlementForCustomer({
-            stripeCustomerId,
-            userId,
-            stripeSubscriptionId: invoiceSubscriptionId,
-          });
-
-          if (candidate) {
-            fallbackProductKey = candidate.productKey;
-
-            await upsertEntitlement({
-              userId,
-              productKey: candidate.productKey,
-              plan: candidate.plan,
-              status: "active",
-              stripeCustomerId,
-              stripeSubscriptionId: candidate.stripeSubscriptionId,
-              stripePaymentIntentId: null,
-              expiresAt: null,
-              metadata: {
-                event: "invoice.paid",
-                invoice_id: invoiceId,
-                fallback: "customer_monthly_pick",
-              },
-              eventType: "invoice.paid",
-
-              amountCents: amountPaid,
-              currency,
-              paidAtIso,
-              stripeInvoiceId: invoiceId,
-            });
-          }
-        }
-
-        // Single ledger entry for invoice paid amount (source-of-truth cash receipt)
         if (amountPaid && currency) {
           let bl: "company" | "qr_studio" = "company";
 
@@ -773,7 +736,8 @@ export async function POST(req: Request) {
       case "customer.subscription.deleted": {
         const sub = event.data.object as Stripe.Subscription;
 
-        const stripeCustomerId = getIdFromStringOrObject(sub.customer);
+        const stripeCustomerId =
+          typeof sub.customer === "string" ? sub.customer : null;
         if (!stripeCustomerId) break;
 
         const userId = await resolveUserIdFromCustomer(stripeCustomerId);
@@ -811,8 +775,6 @@ export async function POST(req: Request) {
               stripe_status: expanded.status,
             },
             eventType: event.type,
-
-            // do NOT stamp paid fields here (this is not a payment event)
             amountCents: null,
             currency: null,
             paidAtIso: null,
