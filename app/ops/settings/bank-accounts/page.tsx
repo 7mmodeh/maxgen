@@ -19,7 +19,7 @@ type BankAccountRow = {
   id: string;
   name: string;
   currency: string;
-  status: string;
+  status: "active" | "archived";
   opening_balance_amount: string;
   opening_balance_date: string;
   created_at: string;
