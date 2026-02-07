@@ -76,11 +76,23 @@ type ReserveBucketRow = {
   updated_at: string;
 };
 
+/**
+ * ops_sales_daily_rollup returns:
+ * day, business_line, currency, sales (numeric), count (int)
+ */
+type SalesDailyRollupDbRow = {
+  day: string; // date
+  business_line: string; // business_line enum -> string
+  currency: string | null;
+  sales: string | number | null; // numeric -> string (usually) or number
+  count: number | string | null; // int -> number or string
+};
+
 type SalesDailyRollupRow = {
   day: string; // date
   business_line: string; // business_line enum
   currency: string | null; // may be null if unknown
-  amount_cents: number | string | null; // int/bigint -> might come as string depending on client
+  amount_cents: number | string | null; // bigint/int -> might come as string depending on client
   sales_count: number | string | null; // optional
 };
 
@@ -89,6 +101,12 @@ function toNumber(v: string | number | null | undefined): number {
   if (typeof v === "number") return Number.isFinite(v) ? v : 0;
   const n = Number(String(v));
   return Number.isFinite(n) ? n : 0;
+}
+
+function toCentsFromMoney(v: string | number | null | undefined): number {
+  const n = toNumber(v);
+  // Avoid floating point surprises by rounding to nearest cent.
+  return Math.max(0, Math.trunc(Math.round(n * 100)));
 }
 
 function isoDate(d: Date): string {
@@ -555,14 +573,34 @@ export default async function OpsDashboardPage() {
   // -------------------------
   const salesSince30 = daysAgoIso(30);
 
+  // ✅ FIX: ops_sales_daily_rollup columns are: day,business_line,currency,sales,count
   const sales30Res = await admin
     .from("ops_sales_daily_rollup")
-    .select("day,business_line,currency,amount_cents,sales_count")
+    .select("day,business_line,currency,sales,count")
     .gte("day", salesSince30)
     .lte("day", today)
     .order("day", { ascending: true });
 
-  const salesDaily = (sales30Res.data as SalesDailyRollupRow[] | null) ?? [];
+  if (sales30Res.error) {
+    return (
+      <main className="mx-auto w-full max-w-5xl px-6 py-16">
+        <pre className="rounded-xl border p-4 text-xs overflow-auto">
+          {sales30Res.error.message}
+        </pre>
+      </main>
+    );
+  }
+
+  const salesDbRows = (sales30Res.data as SalesDailyRollupDbRow[] | null) ?? [];
+
+  // Normalize DB rows into the canonical client shape (cents + count)
+  const salesDaily: SalesDailyRollupRow[] = salesDbRows.map((r) => ({
+    day: r.day,
+    business_line: String(r.business_line ?? ""),
+    currency: r.currency ?? "UNKNOWN",
+    amount_cents: toCentsFromMoney(r.sales),
+    sales_count: Math.max(0, Math.trunc(toNumber(r.count))),
+  }));
 
   const sales7Since = daysAgoIso(7);
   const salesTodayRows = salesDaily.filter((r) => r.day === today);
@@ -642,7 +680,7 @@ export default async function OpsDashboardPage() {
             : "unsigned-mapped",
           transferWarnings: expected.meta.transferWarnings,
 
-          // ✅ Sales KPIs (canonical, cents) — matches OpsDashboardClient KPI type
+          // ✅ Sales KPIs (canonical, cents)
           salesTodayByCurrency: groupSalesByCurrency(salesTodayRows),
           sales7dByCurrency: groupSalesByCurrency(sales7Rows),
           sales30dByCurrency: groupSalesByCurrency(sales30Rows),
