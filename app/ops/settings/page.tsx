@@ -119,6 +119,11 @@ export default async function OpsSettingsHome() {
 
       <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
         <CardLink
+          href="/ops/settings/sales/new"
+          title="Manual Sales"
+          desc="Record cash / bank transfer sales into ledger + canonical sales rollups."
+        />
+        <CardLink
           href="/ops/settings/reserves"
           title="Reserves"
           desc="Emergency buffer, refund reserve, VAT reserve (awareness-only)."
