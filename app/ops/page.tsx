@@ -77,23 +77,44 @@ type ReserveBucketRow = {
 };
 
 /**
- * ops_sales_daily_rollup returns:
- * day, business_line, currency, sales (numeric), count (int)
+ * Canonical shape the client expects (cents + count).
  */
-type SalesDailyRollupDbRow = {
-  day: string; // date
-  business_line: string; // business_line enum -> string
-  currency: string | null;
-  sales: string | number | null; // numeric -> string (usually) or number
-  count: number | string | null; // int -> number or string
-};
-
 type SalesDailyRollupRow = {
   day: string; // date
-  business_line: string; // business_line enum
-  currency: string | null; // may be null if unknown
-  amount_cents: number | string | null; // bigint/int -> might come as string depending on client
-  sales_count: number | string | null; // optional
+  business_line: string; // enum -> string
+  currency: string | null;
+  amount_cents: number | string | null; // bigint/int -> might come as string
+  sales_count: number | string | null;
+};
+
+/**
+ * Possible DB-return shapes for ops_sales_daily_rollup (we support both):
+ * 1) day, business_line, currency, amount_cents, count
+ * 2) day, business_line, currency, amount_cents, sales_count
+ * 3) day, business_line, currency, sales, count   (legacy)
+ */
+type SalesRollupDbRowAmountCentsCount = {
+  day: string;
+  business_line: string;
+  currency: string | null;
+  amount_cents: number | string | null;
+  count: number | string | null;
+};
+
+type SalesRollupDbRowAmountCentsSalesCount = {
+  day: string;
+  business_line: string;
+  currency: string | null;
+  amount_cents: number | string | null;
+  sales_count: number | string | null;
+};
+
+type SalesRollupDbRowSalesCount = {
+  day: string;
+  business_line: string;
+  currency: string | null;
+  sales: number | string | null; // numeric -> string
+  count: number | string | null;
 };
 
 function toNumber(v: string | number | null | undefined): number {
@@ -105,7 +126,6 @@ function toNumber(v: string | number | null | undefined): number {
 
 function toCentsFromMoney(v: string | number | null | undefined): number {
   const n = toNumber(v);
-  // Avoid floating point surprises by rounding to nearest cent.
   return Math.max(0, Math.trunc(Math.round(n * 100)));
 }
 
@@ -170,16 +190,13 @@ function computeSignedLedger(entries: LedgerEntryRow[]): {
   const signedById = new Map<string, number>();
   let transferWarnings = 0;
 
-  // Detect if any negative amounts exist.
   const anyNegative = entries.some((e) => toNumber(e.amount) < 0);
 
-  // If signed, use raw amount.
   if (anyNegative) {
     for (const e of entries) signedById.set(e.id, toNumber(e.amount));
     return { isSignedSource: true, signedById, transferWarnings: 0 };
   }
 
-  // Unsigned fallback: sign mapping by entry_type, with transfer handled by group.
   const inflow = new Set([
     "opening_balance",
     "customer_payment",
@@ -194,7 +211,6 @@ function computeSignedLedger(entries: LedgerEntryRow[]): {
     "owner_withdrawal",
   ]);
 
-  // Group transfers by transfer_group_id
   const transfers = new Map<string, LedgerEntryRow[]>();
   for (const e of entries) {
     if (e.entry_type === "transfer") {
@@ -209,7 +225,6 @@ function computeSignedLedger(entries: LedgerEntryRow[]): {
     }
   }
 
-  // Assign signs within each transfer group: first out (-), second in (+), alternating thereafter.
   for (const [, group] of transfers) {
     const sorted = [...group].sort((a, b) => {
       const ta = new Date(a.created_at).getTime();
@@ -226,9 +241,8 @@ function computeSignedLedger(entries: LedgerEntryRow[]): {
     }
   }
 
-  // Non-transfer entries.
   for (const e of entries) {
-    if (e.entry_type === "transfer") continue; // already handled
+    if (e.entry_type === "transfer") continue;
     const amt = toNumber(e.amount);
 
     if (outflow.has(e.entry_type)) {
@@ -240,13 +254,11 @@ function computeSignedLedger(entries: LedgerEntryRow[]): {
       continue;
     }
 
-    // adjustment: allow negative if supplied, otherwise treat as + (since unsigned mode)
     if (e.entry_type === "adjustment") {
       signedById.set(e.id, amt);
       continue;
     }
 
-    // Unknown types (should not happen): treat as +, but safe.
     signedById.set(e.id, amt);
   }
 
@@ -265,15 +277,12 @@ function computeExpectedCashByAccount(
   const { isSignedSource, signedById, transferWarnings } =
     computeSignedLedger(entries);
 
-  // Seed from ops_bank_accounts.opening_balance_amount (canonical for Option A)
   const totalsByAccountId = new Map<string, number>();
   for (const a of accounts) {
     totalsByAccountId.set(a.id, toNumber(a.opening_balance_amount));
   }
 
   for (const e of entries) {
-    // ✅ FIX (Option A): prevent double-counting opening balance
-    // because opening is already seeded from ops_bank_accounts.
     if (e.entry_type === "opening_balance") continue;
 
     const signed = signedById.get(e.id) ?? 0;
@@ -332,7 +341,6 @@ function computeReserves(
       reserved = toNumber(b.fixed_amount);
     } else if (kind === "percentage") {
       const raw = toNumber(b.percentage);
-      // Robust: allow 10 (meaning 10%) or 0.10 (meaning 10%)
       const pct = raw > 1 ? raw / 100 : raw;
       reserved = expectedCashTotal * pct;
     } else {
@@ -369,6 +377,106 @@ function groupSalesByCurrency(rows: SalesDailyRollupRow[]): Array<{
   return Array.from(m.entries())
     .map(([currency, amount_cents]) => ({ currency, amount_cents }))
     .sort((a, b) => a.currency.localeCompare(b.currency));
+}
+
+function normalizeSalesRows(
+  rows:
+    | SalesRollupDbRowAmountCentsCount[]
+    | SalesRollupDbRowAmountCentsSalesCount[]
+    | SalesRollupDbRowSalesCount[],
+): SalesDailyRollupRow[] {
+  return rows.map((r) => {
+    const base = r as unknown as {
+      day?: unknown;
+      business_line?: unknown;
+      currency?: unknown;
+      amount_cents?: unknown;
+      sales_count?: unknown;
+      count?: unknown;
+      sales?: unknown;
+    };
+
+    const day = typeof base.day === "string" ? base.day : "";
+    const business_line =
+      typeof base.business_line === "string" ? base.business_line : "";
+    const currency =
+      typeof base.currency === "string"
+        ? base.currency
+        : (base.currency as null);
+
+    const hasAmountCents = base.amount_cents !== undefined;
+    const amount_cents = hasAmountCents
+      ? Math.max(0, Math.trunc(toNumber(base.amount_cents as string | number)))
+      : toCentsFromMoney(base.sales as string | number | null);
+
+    const sales_count =
+      base.sales_count !== undefined
+        ? Math.max(0, Math.trunc(toNumber(base.sales_count as string | number)))
+        : Math.max(0, Math.trunc(toNumber(base.count as string | number)));
+
+    return {
+      day,
+      business_line,
+      currency: currency ?? "UNKNOWN",
+      amount_cents,
+      sales_count,
+    };
+  });
+}
+
+async function fetchSalesDailyRollup(args: {
+  admin: ReturnType<typeof getSupabaseAdmin>;
+  sinceIso: string;
+  todayIso: string;
+}): Promise<SalesDailyRollupRow[]> {
+  // Try the canonical columns first (what OpsDashboardClient expects).
+  const r1 = await args.admin
+    .from("ops_sales_daily_rollup")
+    .select("day,business_line,currency,amount_cents,sales_count")
+    .gte("day", args.sinceIso)
+    .lte("day", args.todayIso)
+    .order("day", { ascending: true });
+
+  if (!r1.error) {
+    const rows =
+      (r1.data as SalesRollupDbRowAmountCentsSalesCount[] | null) ?? [];
+    return normalizeSalesRows(rows);
+  }
+
+  // If sales_count doesn't exist, try amount_cents + count.
+  const r2 = await args.admin
+    .from("ops_sales_daily_rollup")
+    .select("day,business_line,currency,amount_cents,count")
+    .gte("day", args.sinceIso)
+    .lte("day", args.todayIso)
+    .order("day", { ascending: true });
+
+  if (!r2.error) {
+    const rows = (r2.data as SalesRollupDbRowAmountCentsCount[] | null) ?? [];
+    return normalizeSalesRows(rows);
+  }
+
+  // Legacy fallback: sales + count (money, not cents).
+  const r3 = await args.admin
+    .from("ops_sales_daily_rollup")
+    .select("day,business_line,currency,sales,count")
+    .gte("day", args.sinceIso)
+    .lte("day", args.todayIso)
+    .order("day", { ascending: true });
+
+  if (!r3.error) {
+    const rows = (r3.data as SalesRollupDbRowSalesCount[] | null) ?? [];
+    return normalizeSalesRows(rows);
+  }
+
+  // If all fail, throw a single combined error (you'll see it in the <pre>).
+  const msg = [
+    `ops_sales_daily_rollup query failed.`,
+    `Attempt1 (amount_cents,sales_count): ${r1.error.message}`,
+    `Attempt2 (amount_cents,count): ${r2.error.message}`,
+    `Attempt3 (sales,count): ${r3.error.message}`,
+  ].join("\n");
+  throw new Error(msg);
 }
 
 export default async function OpsDashboardPage() {
@@ -423,7 +531,6 @@ export default async function OpsDashboardPage() {
     );
   }
 
-  // Core reads
   const accountsRes = await admin
     .from("ops_bank_accounts")
     .select(
@@ -443,7 +550,6 @@ export default async function OpsDashboardPage() {
 
   const accounts = (accountsRes.data as BankAccountRow[] | null) ?? [];
 
-  // Ledger counts (cheap)
   const since30 = daysAgoIso(30);
   const ledgerCountRes = await admin
     .from("ops_ledger_entries")
@@ -457,7 +563,6 @@ export default async function OpsDashboardPage() {
   const ledgerCount = ledgerCountRes.count ?? 0;
   const ledger30Count = ledger30CountRes.count ?? 0;
 
-  // Fetch all ledger entries (batched) for internal expected cash calc.
   const ledgerEntries = await fetchAll<LedgerEntryRow>(
     admin,
     "ops_ledger_entries",
@@ -489,7 +594,6 @@ export default async function OpsDashboardPage() {
     (a) => a.status === "archived",
   ).length;
 
-  // Upcoming windows
   const today = isoDate(new Date());
   const next30 = addDaysIso(today, 30);
 
@@ -537,13 +641,11 @@ export default async function OpsDashboardPage() {
     ? expensesOverdueRes.data.length
     : 0;
 
-  // Expected spend next 30
   const expectedSpendNext30 = expensesUpcoming.reduce(
     (sum, r) => sum + toNumber(r.amount_expected),
     0,
   );
 
-  // Reserve buckets
   const reservesRes = await admin
     .from("ops_reserve_buckets")
     .select(
@@ -556,7 +658,6 @@ export default async function OpsDashboardPage() {
   const availableAfterReserves =
     expected.grandTotal - reservesComputed.totalReserved;
 
-  // Recent activity
   const recentRes = await admin
     .from("ops_ledger_entries")
     .select(
@@ -573,34 +674,21 @@ export default async function OpsDashboardPage() {
   // -------------------------
   const salesSince30 = daysAgoIso(30);
 
-  // ✅ FIX: ops_sales_daily_rollup columns are: day,business_line,currency,sales,count
-  const sales30Res = await admin
-    .from("ops_sales_daily_rollup")
-    .select("day,business_line,currency,sales,count")
-    .gte("day", salesSince30)
-    .lte("day", today)
-    .order("day", { ascending: true });
-
-  if (sales30Res.error) {
+  let salesDaily: SalesDailyRollupRow[] = [];
+  try {
+    salesDaily = await fetchSalesDailyRollup({
+      admin,
+      sinceIso: salesSince30,
+      todayIso: today,
+    });
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
     return (
       <main className="mx-auto w-full max-w-5xl px-6 py-16">
-        <pre className="rounded-xl border p-4 text-xs overflow-auto">
-          {sales30Res.error.message}
-        </pre>
+        <pre className="rounded-xl border p-4 text-xs overflow-auto">{msg}</pre>
       </main>
     );
   }
-
-  const salesDbRows = (sales30Res.data as SalesDailyRollupDbRow[] | null) ?? [];
-
-  // Normalize DB rows into the canonical client shape (cents + count)
-  const salesDaily: SalesDailyRollupRow[] = salesDbRows.map((r) => ({
-    day: r.day,
-    business_line: String(r.business_line ?? ""),
-    currency: r.currency ?? "UNKNOWN",
-    amount_cents: toCentsFromMoney(r.sales),
-    sales_count: Math.max(0, Math.trunc(toNumber(r.count))),
-  }));
 
   const sales7Since = daysAgoIso(7);
   const salesTodayRows = salesDaily.filter((r) => r.day === today);
@@ -680,7 +768,6 @@ export default async function OpsDashboardPage() {
             : "unsigned-mapped",
           transferWarnings: expected.meta.transferWarnings,
 
-          // ✅ Sales KPIs (canonical, cents)
           salesTodayByCurrency: groupSalesByCurrency(salesTodayRows),
           sales7dByCurrency: groupSalesByCurrency(sales7Rows),
           sales30dByCurrency: groupSalesByCurrency(sales30Rows),
@@ -733,7 +820,6 @@ export default async function OpsDashboardPage() {
             created_at: r.created_at,
           })),
 
-          // ✅ Sales daily series (cents)
           salesDaily: salesDaily.map((r) => ({
             day: r.day,
             business_line: String(r.business_line ?? ""),
