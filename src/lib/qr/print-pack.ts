@@ -1,7 +1,12 @@
 // src/lib/qr/print-pack.ts
 import crypto from "crypto";
 import { supabaseServer } from "@/src/lib/supabase/server";
-import { renderPrintPackPdfs, type PrintPackSpec, type PrintPackFormat } from "@/src/lib/qr/print-render";
+import {
+  renderPrintPackPdfs,
+  type PrintPackSpec,
+  type PrintPackFormat,
+  PRINT_RENDER_VERSION,
+} from "@/src/lib/qr/print-render";
 import type { QrProjectRow } from "@/src/lib/qr/render";
 
 export type PrintPackManifestFile = {
@@ -31,24 +36,32 @@ function stableStringify(v: unknown): string {
   if (Array.isArray(v)) return `[${v.map(stableStringify).join(",")}]`;
   if (isRecord(v)) {
     const keys = Object.keys(v).sort();
-    return `{${keys.map((k) => JSON.stringify(k) + ":" + stableStringify(v[k])).join(",")}}`;
+    return `{${keys
+      .map((k) => JSON.stringify(k) + ":" + stableStringify(v[k]))
+      .join(",")}}`;
   }
   return JSON.stringify(v);
 }
 
-export function normalizeSpec(input: PrintPackSpec, project: QrProjectRow): PrintPackSpec {
+export function normalizeSpec(
+  input: PrintPackSpec,
+  project: QrProjectRow
+): PrintPackSpec {
   const formats = (input.formats ?? []).filter(Boolean) as PrintPackFormat[];
+
+  const brandNameRaw = (input.brand_name ?? project.business_name).trim();
+  const websiteRaw = (input.website ?? project.url).trim();
 
   return {
     project_id: input.project_id,
     formats: formats.length ? Array.from(new Set(formats)) : ["business_card"],
 
-    brand_name: (input.brand_name ?? project.business_name).trim(),
+    brand_name: brandNameRaw,
     person_name: (input.person_name ?? "").trim() || undefined,
     title: (input.title ?? "").trim() || undefined,
     phone: (input.phone ?? "").trim() || undefined,
     email: (input.email ?? "").trim() || undefined,
-    website: (input.website ?? project.url).trim(),
+    website: websiteRaw,
     address: (input.address ?? "").trim() || undefined,
 
     theme: input.theme === "light" ? "light" : "dark",
@@ -56,12 +69,19 @@ export function normalizeSpec(input: PrintPackSpec, project: QrProjectRow): Prin
   };
 }
 
-export function generationHash(args: { projectId: string; spec: PrintPackSpec; templateVersion: number }): string {
+export function generationHash(args: {
+  projectId: string;
+  spec: PrintPackSpec;
+  templateVersion: number;
+}): string {
   const payload = {
     project_id: args.projectId,
     template_version: args.templateVersion,
+    // critical: style cache-bust
+    print_render_version: PRINT_RENDER_VERSION,
     spec: args.spec,
   };
+
   const s = stableStringify(payload);
   return crypto.createHash("sha256").update(s).digest("hex").slice(0, 32);
 }
@@ -75,7 +95,10 @@ function storagePath(args: {
   return `print-pack/${args.userId}/${args.projectId}/${args.generationHash}/${args.filename}`;
 }
 
-export async function loadProjectOwned(projectId: string, userId: string): Promise<QrProjectRow | null> {
+export async function loadProjectOwned(
+  projectId: string,
+  userId: string
+): Promise<QrProjectRow | null> {
   const sb = await supabaseServer();
   const { data, error } = await sb
     .from("qr_projects")
@@ -91,7 +114,10 @@ export async function loadProjectOwned(projectId: string, userId: string): Promi
   return data as QrProjectRow;
 }
 
-export async function getLatestAssetForProject(args: { projectId: string; userId: string }): Promise<PrintPackAssetRow | null> {
+export async function getLatestAssetForProject(args: {
+  projectId: string;
+  userId: string;
+}): Promise<PrintPackAssetRow | null> {
   const sb = await supabaseServer();
   const { data, error } = await sb
     .from("qr_print_pack_assets")
@@ -109,7 +135,10 @@ export async function getLatestAssetForProject(args: { projectId: string; userId
   return (data as PrintPackAssetRow) ?? null;
 }
 
-export async function getAssetById(args: { assetId: string; userId: string }): Promise<PrintPackAssetRow | null> {
+export async function getAssetById(args: {
+  assetId: string;
+  userId: string;
+}): Promise<PrintPackAssetRow | null> {
   const sb = await supabaseServer();
   const { data, error } = await sb
     .from("qr_print_pack_assets")
@@ -139,7 +168,7 @@ export async function ensureGeneratedAssets(args: {
     templateVersion: args.project.template_version,
   });
 
-  // if exists by generation_hash, return it
+  // If exists by generation_hash, return it
   {
     const { data, error } = await sb
       .from("qr_print_pack_assets")
@@ -159,10 +188,10 @@ export async function ensureGeneratedAssets(args: {
     }
   }
 
-  // render PDFs
+  // Render PDFs
   const rendered = await renderPrintPackPdfs(args.project, norm);
 
-  // upload + build manifest
+  // Upload + build manifest
   const manifest: PrintPackManifest = {};
   for (const file of rendered) {
     const path = storagePath({
@@ -185,10 +214,13 @@ export async function ensureGeneratedAssets(args: {
       throw new Error("storage_upload_failed");
     }
 
-    manifest[file.key] = { filename: file.filename, path, bytes: file.bytes.byteLength };
+    manifest[file.key] = {
+      filename: file.filename,
+      path,
+      bytes: file.bytes.byteLength,
+    };
   }
 
-  // persist DB row
   const now = new Date().toISOString();
   const payload = {
     user_id: args.userId,
@@ -199,20 +231,31 @@ export async function ensureGeneratedAssets(args: {
     updated_at: now,
   };
 
-  // We don’t assume an ON CONFLICT constraint name; insert then fallback to update.
-  const ins = await sb.from("qr_print_pack_assets").insert(payload).select("id").maybeSingle();
+  const ins = await sb
+    .from("qr_print_pack_assets")
+    .insert(payload)
+    .select("id")
+    .maybeSingle();
+
   if (!ins.error && ins.data?.id) {
-    return { assetId: String(ins.data.id), generationHash: gh, files: manifest };
+    return {
+      assetId: String(ins.data.id),
+      generationHash: gh,
+      files: manifest,
+    };
   }
 
-  // fallback: try update existing by (user_id, project_id, generation_hash) if insert failed due to unique constraint
   if (ins.error) {
     console.warn("[print-pack] insert failed, trying update:", ins.error);
   }
 
   const upd = await sb
     .from("qr_print_pack_assets")
-    .update({ files: manifest as unknown, spec: norm as unknown, updated_at: now })
+    .update({
+      files: manifest as unknown,
+      spec: norm as unknown,
+      updated_at: now,
+    })
     .eq("user_id", args.userId)
     .eq("project_id", args.project.id)
     .eq("generation_hash", gh)

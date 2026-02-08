@@ -3,12 +3,15 @@ import {
   PDFDocument,
   StandardFonts,
   rgb,
+  type PDFImage,
   type PDFPage,
-  type PDFFont,
+  type RGB,
 } from "pdf-lib";
 import sharp from "sharp";
 import { supabaseServer } from "@/src/lib/supabase/server";
 import { generateQrPng, type QrProjectRow } from "@/src/lib/qr/render";
+
+export const PRINT_RENDER_VERSION = 2;
 
 export type PrintPackFormat =
   | "business_card"
@@ -41,24 +44,6 @@ export type RenderedFile = {
   bytes: Buffer;
 };
 
-type ThemeColors = {
-  bg0: { r: number; g: number; b: number };
-  bg1: { r: number; g: number; b: number };
-  accent: { r: number; g: number; b: number };
-
-  text: ReturnType<typeof rgb>;
-  muted: ReturnType<typeof rgb>;
-
-  plate: ReturnType<typeof rgb>;
-  plateBorder: ReturnType<typeof rgb>;
-
-  panel: ReturnType<typeof rgb>;
-  panelBorder: ReturnType<typeof rgb>;
-
-  inkOnPlate: ReturnType<typeof rgb>;
-  mutedOnPlate: ReturnType<typeof rgb>;
-};
-
 function mmToPt(mm: number): number {
   return (mm / 25.4) * 72;
 }
@@ -69,164 +54,157 @@ function aSizePt(which: "A5" | "A4" | "A3"): [number, number] {
   return [mmToPt(297), mmToPt(420)];
 }
 
-function clamp(n: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, n));
-}
-
 function safeLine(v: string | undefined): string | null {
   const s = (v ?? "").trim();
   return s.length ? s : null;
 }
 
-function normalizeWebsite(v: string): string {
-  const s = v.trim();
-  if (!s) return s;
-  return s.replace(/^https?:\/\//i, "").replace(/\/+$/, "");
+
+function clamp01(n: number): number {
+  if (n < 0) return 0;
+  if (n > 1) return 1;
+  return n;
 }
 
-function themeColors(theme: PrintPackTheme): ThemeColors {
-  const accent = { r: 37, g: 99, b: 235 }; // ~ #2563EB
-
-  if (theme === "dark") {
-    return {
-      bg0: { r: 10, g: 14, b: 26 },
-      bg1: { r: 11, g: 18, b: 32 },
-      accent,
-
-      text: rgb(1, 1, 1),
-      muted: rgb(0.78, 0.82, 0.9),
-
-      plate: rgb(1, 1, 1),
-      plateBorder: rgb(0.86, 0.88, 0.92),
-
-      panel: rgb(0.07, 0.1, 0.16),
-      panelBorder: rgb(0.18, 0.22, 0.32),
-
-      inkOnPlate: rgb(0.06, 0.08, 0.12),
-      mutedOnPlate: rgb(0.25, 0.3, 0.38),
-    };
-  }
-
-  return {
-    bg0: { r: 248, g: 250, b: 252 },
-    bg1: { r: 241, g: 245, b: 249 },
-    accent,
-
-    text: rgb(0.06, 0.08, 0.12),
-    muted: rgb(0.25, 0.3, 0.38),
-
-    plate: rgb(1, 1, 1),
-    plateBorder: rgb(0.86, 0.88, 0.92),
-
-    panel: rgb(1, 1, 1),
-    panelBorder: rgb(0.85, 0.87, 0.9),
-
-    inkOnPlate: rgb(0.06, 0.08, 0.12),
-    mutedOnPlate: rgb(0.25, 0.3, 0.38),
-  };
+function lerp(a: number, b: number, t: number): number {
+  return a + (b - a) * t;
 }
 
-async function createPremiumBackgroundPng(args: {
-  widthPt: number;
-  heightPt: number;
-  theme: PrintPackTheme;
-  dpi?: number;
-}): Promise<Buffer> {
-  const dpi = args.dpi ?? 150;
-  const widthPx = Math.max(64, Math.round((args.widthPt / 72) * dpi));
-  const heightPx = Math.max(64, Math.round((args.heightPt / 72) * dpi));
 
-  const c = themeColors(args.theme);
-  const buf = Buffer.alloc(widthPx * heightPx * 4);
+type RgbTuple = readonly [number, number, number];
 
-  for (let y = 0; y < heightPx; y++) {
-    for (let x = 0; x < widthPx; x++) {
-      const tY = y / Math.max(1, heightPx - 1);
-      const tX = x / Math.max(1, widthPx - 1);
-      const t = clamp(0.75 * tY + 0.25 * tX, 0, 1);
+function rgbT(c: RgbTuple): RGB {
+  return rgb(c[0], c[1], c[2]);
+}
 
-      const baseR = Math.round(c.bg0.r + (c.bg1.r - c.bg0.r) * t);
-      const baseG = Math.round(c.bg0.g + (c.bg1.g - c.bg0.g) * t);
-      const baseB = Math.round(c.bg0.b + (c.bg1.b - c.bg0.b) * t);
+function mix(a: RgbTuple, b: RgbTuple, t: number): RgbTuple {
+  const tt = clamp01(t);
+  return [
+    lerp(a[0], b[0], tt),
+    lerp(a[1], b[1], tt),
+    lerp(a[2], b[2], tt),
+  ] as const;
+}
 
-      const n = Math.floor((Math.random() - 0.5) * 10); // [-5..+5]
-      const r = clamp(baseR + n, 0, 255);
-      const g = clamp(baseG + n, 0, 255);
-      const b = clamp(baseB + n, 0, 255);
+function drawGradientBands(args: {
+  page: PDFPage;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  from: RgbTuple;
+  to: RgbTuple;
+  steps?: number;
+  vertical?: boolean;
+  opacity?: number;
+}) {
+  const steps = Math.max(12, args.steps ?? 48);
+  const vertical = args.vertical ?? true;
+  const opacity = args.opacity;
 
-      const i = (y * widthPx + x) * 4;
-      buf[i] = r;
-      buf[i + 1] = g;
-      buf[i + 2] = b;
-      buf[i + 3] = 255;
+  for (let i = 0; i < steps; i++) {
+    const t0 = i / steps;
+    const t1 = (i + 1) / steps;
+    const c = rgbT(mix(args.from, args.to, (t0 + t1) / 2));
+
+    if (vertical) {
+      const bandH = args.h / steps;
+      args.page.drawRectangle({
+        x: args.x,
+        y: args.y + i * bandH,
+        width: args.w,
+        height: bandH + 0.5,
+        color: c,
+        opacity,
+      });
+    } else {
+      const bandW = args.w / steps;
+      args.page.drawRectangle({
+        x: args.x + i * bandW,
+        y: args.y,
+        width: bandW + 0.5,
+        height: args.h,
+        color: c,
+        opacity,
+      });
     }
   }
-
-  return sharp(buf, { raw: { width: widthPx, height: heightPx, channels: 4 } })
-    .blur(0.3)
-    .png()
-    .toBuffer();
 }
 
-function measureWidth(font: PDFFont, text: string, size: number): number {
-  return font.widthOfTextAtSize(text, size);
+function roundedRectPath(
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  r: number
+): string {
+  const rr = Math.max(0, Math.min(r, Math.min(w, h) / 2));
+  const x0 = x;
+  const y0 = y;
+  const x1 = x + w;
+  const y1 = y + h;
+
+  // SVG path, absolute commands
+  return [
+    `M ${x0 + rr} ${y0}`,
+    `L ${x1 - rr} ${y0}`,
+    `Q ${x1} ${y0} ${x1} ${y0 + rr}`,
+    `L ${x1} ${y1 - rr}`,
+    `Q ${x1} ${y1} ${x1 - rr} ${y1}`,
+    `L ${x0 + rr} ${y1}`,
+    `Q ${x0} ${y1} ${x0} ${y1 - rr}`,
+    `L ${x0} ${y0 + rr}`,
+    `Q ${x0} ${y0} ${x0 + rr} ${y0}`,
+    "Z",
+  ].join(" ");
 }
 
-function fitSingleLineText(args: {
-  font: PDFFont;
-  text: string;
-  size: number;
-  maxWidth: number;
-  minSize?: number;
-}): { text: string; size: number } {
-  const minSize = args.minSize ?? Math.max(6, args.size - 6);
-  const clean = args.text.trim();
-
-  for (let s = args.size; s >= minSize; s -= 0.5) {
-    if (measureWidth(args.font, clean, s) <= args.maxWidth) {
-      return { text: clean, size: s };
-    }
-  }
-
-  const ell = "…";
-  if (measureWidth(args.font, clean, minSize) <= args.maxWidth) {
-    return { text: clean, size: minSize };
-  }
-
-  let lo = 0;
-  let hi = clean.length;
-  while (lo < hi) {
-    const mid = Math.ceil((lo + hi) / 2);
-    const candidate = clean.slice(0, mid) + ell;
-    if (measureWidth(args.font, candidate, minSize) <= args.maxWidth) lo = mid;
-    else hi = mid - 1;
-  }
-
-  return { text: clean.slice(0, Math.max(0, lo)) + ell, size: minSize };
+function drawRoundedPanel(args: {
+  page: PDFPage;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  r: number;
+  fill: RGB;
+  stroke?: RGB;
+  strokeWidth?: number;
+  opacity?: number;
+}) {
+  const d = roundedRectPath(args.x, args.y, args.w, args.h, args.r);
+  args.page.drawSvgPath(d, {
+    color: args.fill,
+    opacity: args.opacity,
+    borderColor: args.stroke,
+    borderWidth: args.strokeWidth,
+  });
 }
 
-function linesFromSpec(spec: PrintPackSpec, project: QrProjectRow): string[] {
-  const out: string[] = [];
-
-  const person = safeLine(spec.person_name);
-  const title = safeLine(spec.title);
-  if (person && title) out.push(`${person} · ${title}`);
-  else if (person) out.push(person);
-  else if (title) out.push(title);
-
-  const phone = safeLine(spec.phone);
-  const email = safeLine(spec.email);
-  if (phone) out.push(phone);
-  if (email) out.push(email);
-
-  const websiteRaw = safeLine(spec.website) ?? project.url;
-  const website = websiteRaw ? normalizeWebsite(websiteRaw) : null;
-  if (website) out.push(website);
-
-  const address = safeLine(spec.address);
-  if (address) out.push(address);
-
-  return out.slice(0, 6);
+function drawSoftShadow(args: {
+  page: PDFPage;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  r: number;
+  layers?: number;
+}) {
+  const layers = Math.max(3, args.layers ?? 6);
+  for (let i = 0; i < layers; i++) {
+    const t = i / layers;
+    const spread = lerp(2, 10, t);
+    const op = lerp(0.18, 0.02, t);
+    drawRoundedPanel({
+      page: args.page,
+      x: args.x - spread,
+      y: args.y - spread,
+      w: args.w + spread * 2,
+      h: args.h + spread * 2,
+      r: args.r + spread,
+      fill: rgb(0, 0, 0),
+      opacity: op,
+    });
+  }
 }
 
 async function fetchLogoBytes(logoPath: string): Promise<Buffer> {
@@ -234,8 +212,7 @@ async function fetchLogoBytes(logoPath: string): Promise<Buffer> {
   const { data, error } = await sb.storage
     .from("qr-logos")
     .createSignedUrl(logoPath, 60);
-
-  if (error || !data?.signedUrl) throw new Error("Failed to create signed logo URL");
+  if (error || !data?.signedUrl) throw new Error("Failed to sign logo URL");
 
   const res = await fetch(data.signedUrl);
   if (!res.ok) throw new Error("Failed to fetch logo bytes");
@@ -253,583 +230,683 @@ async function logoToPng(logoBytes: Buffer, targetPx: number): Promise<Buffer> {
     .toBuffer();
 }
 
-async function drawPremiumBackground(doc: PDFDocument, page: PDFPage, theme: PrintPackTheme): Promise<void> {
-  const w = page.getWidth();
-  const h = page.getHeight();
-
-  const png = await createPremiumBackgroundPng({ widthPt: w, heightPt: h, theme, dpi: 150 });
-  const img = await doc.embedPng(png);
-
-  page.drawImage(img, { x: 0, y: 0, width: w, height: h });
+async function embedLogoIfPresent(args: {
+  doc: PDFDocument;
+  project: QrProjectRow;
+  targetPx: number;
+}): Promise<PDFImage | null> {
+  if (!args.project.logo_path) return null;
+  try {
+    const raw = await fetchLogoBytes(args.project.logo_path);
+    const png = await logoToPng(raw, args.targetPx);
+    return await args.doc.embedPng(png);
+  } catch (e: unknown) {
+    console.warn("[print-pack] logo embed failed:", e);
+    return null;
+  }
 }
 
-function drawAccentLine(page: PDFPage, args: { x: number; y: number; w: number; h: number; c: ThemeColors }): void {
-  page.drawRectangle({
-    x: args.x,
-    y: args.y,
-    width: args.w,
-    height: args.h,
-    color: rgb(args.c.accent.r / 255, args.c.accent.g / 255, args.c.accent.b / 255),
-  });
+function premiumPalette(theme: PrintPackTheme) {
+  // All QR sits on white panel for print/scanner safety.
+  if (theme === "light") {
+    return {
+      bgFrom: [0.98, 0.985, 0.995] as const,
+      bgTo: [0.93, 0.95, 0.99] as const,
+      ink: rgb(0.06, 0.08, 0.11),
+      muted: rgb(0.28, 0.33, 0.40),
+      accent: rgb(0.145, 0.388, 0.922), // #2563EB-ish
+      panel: rgb(1, 1, 1),
+      panelStroke: rgb(0.86, 0.89, 0.94),
+    };
+  }
+
+  return {
+    bgFrom: [0.04, 0.06, 0.10] as const, // deep navy
+    bgTo: [0.02, 0.04, 0.07] as const,
+    ink: rgb(1, 1, 1),
+    muted: rgb(0.88, 0.91, 0.96),
+    accent: rgb(0.145, 0.388, 0.922),
+    panel: rgb(1, 1, 1),
+    panelStroke: rgb(0.82, 0.86, 0.92),
+  };
 }
 
-function drawPlate(page: PDFPage, args: { x: number; y: number; w: number; h: number; c: ThemeColors; borderWidth?: number }): void {
-  page.drawRectangle({
-    x: args.x,
-    y: args.y,
-    width: args.w,
-    height: args.h,
-    color: args.c.plate,
-    borderColor: args.c.plateBorder,
-    borderWidth: args.borderWidth ?? 1,
-  });
+function linesFromSpec(spec: PrintPackSpec, project: QrProjectRow): string[] {
+  const out: string[] = [];
+
+  const person = safeLine(spec.person_name);
+  const title = safeLine(spec.title);
+  if (person && title) out.push(`${person} — ${title}`);
+  else if (person) out.push(person);
+  else if (title) out.push(title);
+
+  const phone = safeLine(spec.phone);
+  const email = safeLine(spec.email);
+  if (phone) out.push(phone);
+  if (email) out.push(email);
+
+  const website = safeLine(spec.website) ?? project.url;
+  if (website) out.push(website);
+
+  const address = safeLine(spec.address);
+  if (address) out.push(address);
+
+  return out.slice(0, 6);
 }
 
-function drawPanel(page: PDFPage, args: { x: number; y: number; w: number; h: number; c: ThemeColors; borderWidth?: number }): void {
-  page.drawRectangle({
-    x: args.x,
-    y: args.y,
-    width: args.w,
-    height: args.h,
-    color: args.c.panel,
-    borderColor: args.c.panelBorder,
-    borderWidth: args.borderWidth ?? 1,
-  });
+function trimForMax(v: string, max: number): string {
+  const s = v.trim();
+  if (s.length <= max) return s;
+  return `${s.slice(0, Math.max(0, max - 1))}…`;
 }
 
-async function renderBusinessCard(spec: PrintPackSpec, project: QrProjectRow): Promise<Buffer> {
+async function renderBusinessCard(
+  spec: PrintPackSpec,
+  project: QrProjectRow
+): Promise<Buffer> {
   const theme = spec.theme ?? "dark";
-  const c = themeColors(theme);
+  const pal = premiumPalette(theme);
 
+  // EU business card: 85 x 55 mm
   const w = mmToPt(85);
   const h = mmToPt(55);
 
-  const qrPng = await generateQrPng(project, { width: 2400 });
+  const qrPng = await generateQrPng(project, { width: 2800 });
 
   const doc = await PDFDocument.create();
   const page = doc.addPage([w, h]);
-
   const font = await doc.embedFont(StandardFonts.Helvetica);
   const fontBold = await doc.embedFont(StandardFonts.HelveticaBold);
 
-  await drawPremiumBackground(doc, page, theme);
-
-  const outerPad = 6;
-  drawPanel(page, {
-    x: outerPad,
-    y: outerPad,
-    w: w - outerPad * 2,
-    h: h - outerPad * 2,
-    c,
-    borderWidth: 1,
+  // Premium gradient base
+  drawGradientBands({
+    page,
+    x: 0,
+    y: 0,
+    w,
+    h,
+    from: pal.bgFrom,
+    to: pal.bgTo,
+    steps: 64,
+    vertical: false,
   });
 
-  drawAccentLine(page, {
-    x: outerPad,
-    y: h - outerPad - 2.2,
-    w: w - outerPad * 2,
-    h: 2.2,
-    c,
+  // subtle diagonal lines (premium texture)
+  const lines = 14;
+  for (let i = 0; i < lines; i++) {
+    const t = i / (lines - 1);
+    const x0 = -w * 0.2 + t * (w * 1.4);
+    page.drawLine({
+      start: { x: x0, y: 0 },
+      end: { x: x0 + w * 0.45, y: h },
+      thickness: 0.6,
+      color: rgb(1, 1, 1),
+      opacity: theme === "dark" ? 0.06 : 0.03,
+    });
+  }
+
+  // QR panel (rounded + shadow)
+  const panelPad = 6;
+  const panelW = w * 0.40;
+  const panelX = w - panelW - panelPad;
+  const panelY = panelPad;
+  const panelH = h - panelPad * 2;
+
+  drawSoftShadow({
+    page,
+    x: panelX,
+    y: panelY,
+    w: panelW,
+    h: panelH,
+    r: 10,
+    layers: 7,
+  });
+
+  drawRoundedPanel({
+    page,
+    x: panelX,
+    y: panelY,
+    w: panelW,
+    h: panelH,
+    r: 10,
+    fill: pal.panel,
+    stroke: pal.panelStroke,
+    strokeWidth: 1,
+  });
+
+  // Accent pill + micro label
+  const pillX = 8;
+  const pillY = h - 14;
+  drawRoundedPanel({
+    page,
+    x: pillX,
+    y: pillY,
+    w: 34,
+    h: 8,
+    r: 4,
+    fill: pal.accent,
+    opacity: 0.9,
+  });
+  page.drawText("PREMIUM", {
+    x: pillX + 6,
+    y: pillY + 2.2,
+    size: 5.2,
+    font: fontBold,
+    color: rgb(1, 1, 1),
   });
 
   const brand = safeLine(spec.brand_name) ?? project.business_name;
+  const brandText = trimForMax(brand, 30);
+
+  // Brand + info left
+  page.drawText(brandText, {
+    x: 10,
+    y: h - 26,
+    size: 10.5,
+    font: fontBold,
+    color: pal.ink,
+    maxWidth: panelX - 16,
+  });
+
   const info = linesFromSpec(spec, project);
-
-  const leftX = outerPad + 10;
-  const leftW = w * 0.56;
-  const rightX = outerPad + leftW + 8;
-  const rightW = w - rightX - outerPad - 10;
-
-  const platePad = 6;
-  const plateSize = Math.min(rightW, h - outerPad * 2 - 16);
-  const plateX = rightX + (rightW - plateSize) / 2;
-  const plateY = outerPad + (h - outerPad * 2 - plateSize) / 2;
-
-  drawPlate(page, { x: plateX, y: plateY, w: plateSize, h: plateSize, c, borderWidth: 1 });
-
-  const qrImg = await doc.embedPng(qrPng);
-  const qrSize = plateSize - platePad * 2;
-  page.drawImage(qrImg, { x: plateX + platePad, y: plateY + platePad, width: qrSize, height: qrSize });
-
-  if (project.logo_path) {
-    try {
-      const raw = await fetchLogoBytes(project.logo_path);
-      const png = await logoToPng(raw, 520);
-      const img = await doc.embedPng(png);
-
-      const s = 18;
-      const px = leftX;
-      const py = outerPad + 10;
-
-      drawPlate(page, { x: px - 2, y: py - 2, w: s + 4, h: s + 4, c, borderWidth: 1 });
-      page.drawImage(img, { x: px, y: py, width: s, height: s });
-    } catch (e: unknown) {
-      console.warn("[print-pack] logo embed failed:", e);
-    }
-  }
-
-  const brandFit = fitSingleLineText({
-    font: fontBold,
-    text: brand,
-    size: 11,
-    maxWidth: leftW - 6,
-    minSize: 8,
-  });
-
-  page.drawText(brandFit.text, {
-    x: leftX,
-    y: h - outerPad - 18,
-    size: brandFit.size,
-    font: fontBold,
-    color: c.text,
-    maxWidth: leftW - 6,
-  });
-
-  let y = h - outerPad - 32;
+  let y = h - 38;
   for (const line of info) {
-    const fit = fitSingleLineText({
-      font,
-      text: line,
-      size: 7.6,
-      maxWidth: leftW - 6,
-      minSize: 6.2,
-    });
-
-    page.drawText(fit.text, {
-      x: leftX,
+    page.drawText(trimForMax(line, 44), {
+      x: 10,
       y,
-      size: fit.size,
+      size: 7.2,
       font,
-      color: c.muted,
-      maxWidth: leftW - 6,
+      color: pal.muted,
+      maxWidth: panelX - 16,
     });
-
-    y -= 9;
+    y -= 9.2;
+    if (y < 10) break;
   }
+
+  // Logo (optional) — bottom-left, small
+  const logoImg = await embedLogoIfPresent({
+    doc,
+    project,
+    targetPx: 520,
+  });
+
+  if (logoImg) {
+    const logoSize = 22;
+    page.drawImage(logoImg, {
+      x: 10,
+      y: 8.5,
+      width: logoSize,
+      height: logoSize,
+    });
+  }
+
+  // QR image on panel
+  const qrImg = await doc.embedPng(qrPng);
+  const qrSize = Math.min(panelW - 16, panelH - 18);
+  const qx = panelX + (panelW - qrSize) / 2;
+  const qy = panelY + (panelH - qrSize) / 2;
+
+  page.drawImage(qrImg, { x: qx, y: qy, width: qrSize, height: qrSize });
+
+  // tiny URL under QR
+  const url = trimForMax(project.url, 26);
+  page.drawText(url, {
+    x: panelX + 8,
+    y: panelY + 7,
+    size: 6.2,
+    font,
+    color: rgb(0.18, 0.22, 0.28),
+    maxWidth: panelW - 16,
+  });
 
   const bytes = await doc.save();
   return Buffer.from(bytes);
 }
 
-async function renderFlyer(spec: PrintPackSpec, project: QrProjectRow, which: "A5" | "A4"): Promise<Buffer> {
+async function renderFlyer(
+  spec: PrintPackSpec,
+  project: QrProjectRow,
+  which: "A5" | "A4"
+): Promise<Buffer> {
   const theme = spec.theme ?? "dark";
-  const c = themeColors(theme);
+  const pal = premiumPalette(theme);
 
   const [w, h] = aSizePt(which);
-  const qrPng = await generateQrPng(project, { width: which === "A5" ? 3200 : 3600 });
+  const qrPng = await generateQrPng(project, { width: 3600 });
 
   const doc = await PDFDocument.create();
   const page = doc.addPage([w, h]);
-
   const font = await doc.embedFont(StandardFonts.Helvetica);
   const fontBold = await doc.embedFont(StandardFonts.HelveticaBold);
 
-  await drawPremiumBackground(doc, page, theme);
-
-  const margin = which === "A5" ? 28 : 36;
-  const headerH = which === "A5" ? 78 : 92;
-
-  drawPanel(page, {
-    x: margin,
-    y: h - margin - headerH,
-    w: w - margin * 2,
-    h: headerH,
-    c,
-    borderWidth: 1,
+  // gradient background
+  drawGradientBands({
+    page,
+    x: 0,
+    y: 0,
+    w,
+    h,
+    from: pal.bgFrom,
+    to: pal.bgTo,
+    steps: 80,
+    vertical: true,
   });
 
-  drawAccentLine(page, { x: margin, y: h - margin - 3, w: w - margin * 2, h: 3, c });
+  // Top accent bar
+  page.drawRectangle({
+    x: 0,
+    y: h - 10,
+    width: w,
+    height: 10,
+    color: pal.accent,
+    opacity: 0.95,
+  });
+
+  // Premium header area
+  const headerPadX = 42;
+  const headerY = h - 84;
 
   const brand = safeLine(spec.brand_name) ?? project.business_name;
-
-  const brandFit = fitSingleLineText({
+  page.drawText(trimForMax(brand, 46), {
+    x: headerPadX,
+    y: headerY + 28,
+    size: which === "A5" ? 20 : 26,
     font: fontBold,
-    text: brand,
-    size: which === "A5" ? 22 : 28,
-    maxWidth: w - margin * 2 - 80,
-    minSize: which === "A5" ? 16 : 18,
-  });
-
-  page.drawText(brandFit.text, {
-    x: margin + 18,
-    y: h - margin - (which === "A5" ? 38 : 44),
-    size: brandFit.size,
-    font: fontBold,
-    color: c.text,
-    maxWidth: w - margin * 2 - 80,
+    color: pal.ink,
+    maxWidth: w - headerPadX * 2,
   });
 
   const subtitle =
-    safeLine(spec.title) ??
-    safeLine(project.tagline ?? undefined) ??
-    "Scan the code to connect instantly";
-
-  const subFit = fitSingleLineText({
+    safeLine(spec.title) ?? safeLine(project.tagline ?? undefined) ?? "Scan to connect";
+  page.drawText(trimForMax(subtitle, 64), {
+    x: headerPadX,
+    y: headerY + 10,
+    size: which === "A5" ? 10 : 12,
     font,
-    text: subtitle,
-    size: which === "A5" ? 11 : 12,
-    maxWidth: w - margin * 2 - 80,
-    minSize: 9,
+    color: pal.muted,
+    maxWidth: w - headerPadX * 2,
   });
 
-  page.drawText(subFit.text, {
-    x: margin + 18,
-    y: h - margin - (which === "A5" ? 60 : 68),
-    size: subFit.size,
-    font,
-    color: c.muted,
-    maxWidth: w - margin * 2 - 80,
+  // Card-like main panel
+  const panelPad = 42;
+  const panelX = panelPad;
+  const panelY = 48;
+  const panelW = w - panelPad * 2;
+  const panelH = h - 150;
+
+  drawSoftShadow({
+    page,
+    x: panelX,
+    y: panelY,
+    w: panelW,
+    h: panelH,
+    r: 16,
+    layers: 8,
   });
 
-  if (project.logo_path) {
-    try {
-      const raw = await fetchLogoBytes(project.logo_path);
-      const png = await logoToPng(raw, 900);
-      const img = await doc.embedPng(png);
-
-      const s = which === "A5" ? 42 : 52;
-      const px = w - margin - 18 - s;
-      const py = h - margin - 18 - s;
-
-      drawPlate(page, { x: px - 4, y: py - 4, w: s + 8, h: s + 8, c, borderWidth: 1 });
-      page.drawImage(img, { x: px, y: py, width: s, height: s });
-    } catch (e: unknown) {
-      console.warn("[print-pack] logo embed failed:", e);
-    }
-  }
-
-  const contentY = margin;
-  const contentTop = h - margin - headerH - 18;
-  const contentH = contentTop - contentY;
-
-  drawPanel(page, {
-    x: margin,
-    y: contentY,
-    w: w - margin * 2,
-    h: contentH,
-    c,
-    borderWidth: 1,
+  drawRoundedPanel({
+    page,
+    x: panelX,
+    y: panelY,
+    w: panelW,
+    h: panelH,
+    r: 16,
+    fill: pal.panel,
+    stroke: pal.panelStroke,
+    strokeWidth: 1,
   });
 
+  // QR framed area inside panel
   const qrImg = await doc.embedPng(qrPng);
+  const qrBoxSize = Math.min(panelW * 0.58, panelH * 0.60);
+  const qrBoxX = panelX + (panelW - qrBoxSize) / 2;
+  const qrBoxY = panelY + panelH * 0.34;
 
-  const panelW = w - margin * 2;
-  const panelH = contentH;
-
-  const qrPlateSize = Math.min(panelW * 0.58, panelH * 0.62);
-  const plateX = margin + (panelW - qrPlateSize) / 2;
-  const plateY = contentY + (panelH - qrPlateSize) / 2 + (which === "A5" ? 18 : 26);
-
-  drawPlate(page, { x: plateX, y: plateY, w: qrPlateSize, h: qrPlateSize, c, borderWidth: 1 });
-
-  const qrPad = qrPlateSize * 0.06;
-  const qrSize = qrPlateSize - qrPad * 2;
-  page.drawImage(qrImg, { x: plateX + qrPad, y: plateY + qrPad, width: qrSize, height: qrSize });
-
-  const cta = "Scan to open your page";
-  const ctaFit = fitSingleLineText({
-    font: fontBold,
-    text: cta,
-    size: which === "A5" ? 12 : 13,
-    maxWidth: panelW - 60,
-    minSize: 10,
+  drawRoundedPanel({
+    page,
+    x: qrBoxX - 10,
+    y: qrBoxY - 10,
+    w: qrBoxSize + 20,
+    h: qrBoxSize + 20,
+    r: 14,
+    fill: rgb(0.97, 0.98, 0.99),
+    stroke: rgb(0.88, 0.90, 0.94),
+    strokeWidth: 1,
   });
 
-  page.drawText(ctaFit.text, {
-    x: margin + (panelW - measureWidth(fontBold, ctaFit.text, ctaFit.size)) / 2,
-    y: plateY - (which === "A5" ? 20 : 22),
-    size: ctaFit.size,
-    font: fontBold,
-    color: c.text,
+  page.drawImage(qrImg, {
+    x: qrBoxX,
+    y: qrBoxY,
+    width: qrBoxSize,
+    height: qrBoxSize,
   });
 
+  // Info block (bottom)
   const info = linesFromSpec(spec, project);
-  const bottomPad = which === "A5" ? 18 : 22;
-  let y = contentY + bottomPad;
+  const infoX = panelX + 30;
+  let infoY = panelY + 34;
 
   for (const line of info) {
-    const fit = fitSingleLineText({
+    page.drawText(trimForMax(line, 88), {
+      x: infoX,
+      y: infoY,
+      size: which === "A5" ? 10 : 11,
       font,
-      text: line,
-      size: which === "A5" ? 10.5 : 11,
-      maxWidth: panelW - 48,
-      minSize: 9,
+      color: rgb(0.22, 0.26, 0.32),
+      maxWidth: panelW - 60,
     });
+    infoY += which === "A5" ? 14 : 15;
+  }
 
-    page.drawText(fit.text, {
-      x: margin + 24,
-      y,
-      size: fit.size,
-      font,
-      color: c.muted,
-      maxWidth: panelW - 48,
+  // CTA line
+  page.drawText("Scan the QR to open the page instantly.", {
+    x: panelX + 30,
+    y: panelY + panelH - 30,
+    size: which === "A5" ? 9 : 10,
+    font,
+    color: rgb(0.35, 0.40, 0.48),
+    maxWidth: panelW - 60,
+  });
+
+  // Logo (optional) top-right
+  const logoImg = await embedLogoIfPresent({
+    doc,
+    project,
+    targetPx: 900,
+  });
+
+  if (logoImg) {
+    const size = which === "A5" ? 44 : 56;
+    page.drawImage(logoImg, {
+      x: w - headerPadX - size,
+      y: h - 78,
+      width: size,
+      height: size,
     });
-
-    y += which === "A5" ? 14 : 15;
   }
 
   const bytes = await doc.save();
   return Buffer.from(bytes);
 }
 
-async function renderPosterA3(spec: PrintPackSpec, project: QrProjectRow): Promise<Buffer> {
+async function renderPosterA3(
+  spec: PrintPackSpec,
+  project: QrProjectRow
+): Promise<Buffer> {
   const theme = spec.theme ?? "dark";
-  const c = themeColors(theme);
+  const pal = premiumPalette(theme);
 
   const [w, h] = aSizePt("A3");
   const qrPng = await generateQrPng(project, { width: 4200 });
 
   const doc = await PDFDocument.create();
   const page = doc.addPage([w, h]);
-
   const font = await doc.embedFont(StandardFonts.Helvetica);
   const fontBold = await doc.embedFont(StandardFonts.HelveticaBold);
 
-  await drawPremiumBackground(doc, page, theme);
-
-  const margin = 56;
-
-  const headerH = 140;
-  drawPanel(page, {
-    x: margin,
-    y: h - margin - headerH,
-    w: w - margin * 2,
-    h: headerH,
-    c,
-    borderWidth: 1,
+  // cinematic gradient + vignette
+  drawGradientBands({
+    page,
+    x: 0,
+    y: 0,
+    w,
+    h,
+    from: pal.bgFrom,
+    to: pal.bgTo,
+    steps: 100,
+    vertical: true,
   });
 
-  drawAccentLine(page, { x: margin, y: h - margin - 4, w: w - margin * 2, h: 4, c });
+  // vignette bands
+  drawGradientBands({
+    page,
+    x: 0,
+    y: 0,
+    w,
+    h,
+    from: [0, 0, 0] as const,
+    to: [0, 0, 0] as const,
+    steps: 70,
+    vertical: true,
+    opacity: theme === "dark" ? 0.06 : 0.035,
+  });
+
+  // top accent
+  page.drawRectangle({
+    x: 0,
+    y: h - 14,
+    width: w,
+    height: 14,
+    color: pal.accent,
+    opacity: 0.95,
+  });
 
   const brand = safeLine(spec.brand_name) ?? project.business_name;
-  const brandFit = fitSingleLineText({
+  page.drawText(trimForMax(brand, 56), {
+    x: 62,
+    y: h - 110,
+    size: 42,
     font: fontBold,
-    text: brand,
-    size: 46,
-    maxWidth: w - margin * 2 - 120,
-    minSize: 28,
-  });
-
-  page.drawText(brandFit.text, {
-    x: margin + 26,
-    y: h - margin - 66,
-    size: brandFit.size,
-    font: fontBold,
-    color: c.text,
-    maxWidth: w - margin * 2 - 120,
+    color: pal.ink,
+    maxWidth: w - 124,
   });
 
   const tagline =
-    safeLine(spec.title) ??
     safeLine(project.tagline ?? undefined) ??
-    "Scan to connect instantly";
-
-  const tagFit = fitSingleLineText({
+    safeLine(spec.title) ??
+    "Scan to connect";
+  page.drawText(trimForMax(tagline, 96), {
+    x: 62,
+    y: h - 150,
+    size: 16,
     font,
-    text: tagline,
-    size: 18,
-    maxWidth: w - margin * 2 - 120,
-    minSize: 12,
+    color: pal.muted,
+    maxWidth: w - 124,
   });
 
-  page.drawText(tagFit.text, {
-    x: margin + 26,
-    y: h - margin - 98,
-    size: tagFit.size,
-    font,
-    color: c.muted,
-    maxWidth: w - margin * 2 - 120,
+  // main panel
+  const panelX = 62;
+  const panelY = 72;
+  const panelW = w - 124;
+  const panelH = h - 260;
+
+  drawSoftShadow({
+    page,
+    x: panelX,
+    y: panelY,
+    w: panelW,
+    h: panelH,
+    r: 22,
+    layers: 9,
   });
 
-  if (project.logo_path) {
-    try {
-      const raw = await fetchLogoBytes(project.logo_path);
-      const png = await logoToPng(raw, 1200);
-      const img = await doc.embedPng(png);
-
-      const s = 78;
-      const px = w - margin - 26 - s;
-      const py = h - margin - 26 - s;
-
-      drawPlate(page, { x: px - 6, y: py - 6, w: s + 12, h: s + 12, c, borderWidth: 1 });
-      page.drawImage(img, { x: px, y: py, width: s, height: s });
-    } catch (e: unknown) {
-      console.warn("[print-pack] logo embed failed:", e);
-    }
-  }
-
-  const panelY = margin;
-  const panelTop = h - margin - headerH - 26;
-  const panelH = panelTop - panelY;
-
-  drawPanel(page, { x: margin, y: panelY, w: w - margin * 2, h: panelH, c, borderWidth: 1 });
+  drawRoundedPanel({
+    page,
+    x: panelX,
+    y: panelY,
+    w: panelW,
+    h: panelH,
+    r: 22,
+    fill: pal.panel,
+    stroke: pal.panelStroke,
+    strokeWidth: 1,
+  });
 
   const qrImg = await doc.embedPng(qrPng);
 
-  const qrPlateSize = Math.min((w - margin * 2) * 0.64, panelH * 0.68);
-  const plateX = margin + ((w - margin * 2) - qrPlateSize) / 2;
-  const plateY = panelY + (panelH - qrPlateSize) / 2 + 48;
+  // QR centered, big
+  const qrSize = Math.min(panelW * 0.62, panelH * 0.62);
+  const qx = panelX + (panelW - qrSize) / 2;
+  const qy = panelY + (panelH - qrSize) / 2 + 40;
 
-  drawPlate(page, { x: plateX, y: plateY, w: qrPlateSize, h: qrPlateSize, c, borderWidth: 1 });
-
-  const qrPad = qrPlateSize * 0.06;
-  const qrSize = qrPlateSize - qrPad * 2;
-  page.drawImage(qrImg, { x: plateX + qrPad, y: plateY + qrPad, width: qrSize, height: qrSize });
-
-  const cta = "Scan to open the link";
-  const ctaFit = fitSingleLineText({
-    font: fontBold,
-    text: cta,
-    size: 18,
-    maxWidth: w - margin * 2 - 100,
-    minSize: 14,
+  drawRoundedPanel({
+    page,
+    x: qx - 16,
+    y: qy - 16,
+    w: qrSize + 32,
+    h: qrSize + 32,
+    r: 22,
+    fill: rgb(0.975, 0.985, 0.995),
+    stroke: rgb(0.86, 0.89, 0.94),
+    strokeWidth: 1,
   });
 
-  page.drawText(ctaFit.text, {
-    x: margin + ((w - margin * 2) - measureWidth(fontBold, ctaFit.text, ctaFit.size)) / 2,
-    y: plateY - 30,
-    size: ctaFit.size,
-    font: fontBold,
-    color: c.text,
-  });
+  page.drawImage(qrImg, { x: qx, y: qy, width: qrSize, height: qrSize });
 
+  // info footer in panel
   const info = linesFromSpec(spec, project);
-  let y = panelY + 36;
+  const infoX = panelX + 44;
+  let infoY = panelY + 36;
+
   for (const line of info) {
-    const fit = fitSingleLineText({
+    page.drawText(trimForMax(line, 110), {
+      x: infoX,
+      y: infoY,
+      size: 14,
       font,
-      text: line,
-      size: 15,
-      maxWidth: w - margin * 2 - 80,
-      minSize: 12,
+      color: rgb(0.22, 0.26, 0.32),
+      maxWidth: panelW - 88,
     });
-
-    page.drawText(fit.text, {
-      x: margin + 40,
-      y,
-      size: fit.size,
-      font,
-      color: c.muted,
-      maxWidth: w - margin * 2 - 80,
-    });
-
-    y += 20;
+    infoY += 19;
   }
+
+  // logo (optional) near header right
+  const logoImg = await embedLogoIfPresent({
+    doc,
+    project,
+    targetPx: 1400,
+  });
+
+  if (logoImg) {
+    const size = 72;
+    page.drawImage(logoImg, {
+      x: w - 62 - size,
+      y: h - 160,
+      width: size,
+      height: size,
+    });
+  }
+
+  // bottom URL outside panel
+  page.drawText(trimForMax(project.url, 60), {
+    x: 62,
+    y: 34,
+    size: 12,
+    font,
+    color: pal.muted,
+    maxWidth: w - 124,
+  });
 
   const bytes = await doc.save();
   return Buffer.from(bytes);
 }
 
-async function renderStickerSheetA4(spec: PrintPackSpec, project: QrProjectRow): Promise<Buffer> {
-  // Keep white sheet for print practicality, but each sticker “premium”
+async function renderStickerSheetA4(
+  spec: PrintPackSpec,
+  project: QrProjectRow
+): Promise<Buffer> {
+  // labels: keep clean and print-friendly, but with premium badge + better spacing
+  const theme: PrintPackTheme = "light";
+  const pal = premiumPalette(theme);
+
   const [w, h] = aSizePt("A4");
-  const qrPng = await generateQrPng(project, { width: 2000 });
+  const qrPng = await generateQrPng(project, { width: 2200 });
 
   const doc = await PDFDocument.create();
   const page = doc.addPage([w, h]);
-
   const font = await doc.embedFont(StandardFonts.Helvetica);
   const fontBold = await doc.embedFont(StandardFonts.HelveticaBold);
 
-  page.drawRectangle({ x: 0, y: 0, width: w, height: h, color: rgb(1, 1, 1) });
+  // soft paper tone
+  drawGradientBands({
+    page,
+    x: 0,
+    y: 0,
+    w,
+    h,
+    from: pal.bgFrom,
+    to: pal.bgTo,
+    steps: 60,
+    vertical: true,
+  });
+
+  // header badge
+  drawRoundedPanel({
+    page,
+    x: 28,
+    y: h - 42,
+    w: 150,
+    h: 22,
+    r: 8,
+    fill: pal.accent,
+    opacity: 0.95,
+  });
+  page.drawText("PRINT PACK LABELS", {
+    x: 28 + 12,
+    y: h - 35,
+    size: 10,
+    font: fontBold,
+    color: rgb(1, 1, 1),
+  });
 
   const brand = safeLine(spec.brand_name) ?? project.business_name;
-  const website = normalizeWebsite(project.url);
 
   const margin = 28;
   const cols = 3;
   const rows = 7;
   const gap = 10;
 
+  const usableH = h - 60; // leave space for header
   const cellW = (w - margin * 2 - gap * (cols - 1)) / cols;
-  const cellH = (h - margin * 2 - gap * (rows - 1)) / rows;
+  const cellH = (usableH - margin * 2 - gap * (rows - 1)) / rows;
+
+  const qrSize = Math.min(cellW, cellH) * 0.66;
 
   const qrImg = await doc.embedPng(qrPng);
 
   for (let r = 0; r < rows; r++) {
     for (let col = 0; col < cols; col++) {
       const x = margin + col * (cellW + gap);
-      const y = h - margin - (r + 1) * cellH - r * gap;
+      const y = usableH - margin - (r + 1) * cellH - r * gap;
 
-      page.drawRectangle({
+      // premium sticker tile
+      drawRoundedPanel({
+        page,
         x,
         y,
-        width: cellW,
-        height: cellH,
-        borderWidth: 0.6,
-        borderColor: rgb(0.85, 0.87, 0.9),
+        w: cellW,
+        h: cellH,
+        r: 10,
+        fill: rgb(1, 1, 1),
+        stroke: rgb(0.86, 0.89, 0.94),
+        strokeWidth: 1,
       });
 
-      const innerPad = 6;
-      const bx = x + innerPad;
-      const by = y + innerPad;
-      const bw = cellW - innerPad * 2;
-      const bh = cellH - innerPad * 2;
+      // QR centered
+      const qx = x + (cellW - qrSize) / 2;
+      const qy = y + (cellH - qrSize) / 2 + 6;
+      page.drawImage(qrImg, { x: qx, y: qy, width: qrSize, height: qrSize });
 
-      const labelPanel = rgb(0.06, 0.08, 0.12);
-      page.drawRectangle({
-        x: bx,
-        y: by,
-        width: bw,
-        height: bh,
-        color: labelPanel,
-        borderWidth: 1,
-        borderColor: rgb(0.2, 0.25, 0.32),
-      });
-
-      const acc = rgb(37 / 255, 99 / 255, 235 / 255);
-      page.drawRectangle({ x: bx, y: by + bh - 2, width: bw, height: 2, color: acc });
-
-      const qrPlateSize = Math.min(bw * 0.72, bh * 0.66);
-      const px = bx + (bw - qrPlateSize) / 2;
-      const py = by + (bh - qrPlateSize) / 2 + 6;
-
-      page.drawRectangle({
-        x: px,
-        y: py,
-        width: qrPlateSize,
-        height: qrPlateSize,
-        color: rgb(1, 1, 1),
-        borderColor: rgb(0.86, 0.88, 0.92),
-        borderWidth: 1,
-      });
-
-      const pad = qrPlateSize * 0.07;
-      const qs = qrPlateSize - pad * 2;
-      page.drawImage(qrImg, { x: px + pad, y: py + pad, width: qs, height: qs });
-
-      const brandFit = fitSingleLineText({
-        font: fontBold,
-        text: brand,
+      // brand label
+      const label = brand.length > 22 ? `${brand.slice(0, 22)}…` : brand;
+      page.drawText(label, {
+        x: x + 10,
+        y: y + 10,
         size: 8.2,
-        maxWidth: bw - 10,
-        minSize: 6.6,
-      });
-
-      page.drawText(brandFit.text, {
-        x: bx + 6,
-        y: by + 10,
-        size: brandFit.size,
         font: fontBold,
-        color: rgb(1, 1, 1),
-        maxWidth: bw - 12,
+        color: rgb(0.10, 0.12, 0.15),
+        maxWidth: cellW - 20,
       });
 
-      const webFit = fitSingleLineText({
+      // tiny url
+      const url = project.url.length > 30 ? `${project.url.slice(0, 30)}…` : project.url;
+      page.drawText(url, {
+        x: x + 10,
+        y: y + 21,
+        size: 6.6,
         font,
-        text: website,
-        size: 6.7,
-        maxWidth: bw - 10,
-        minSize: 5.8,
-      });
-
-      page.drawText(webFit.text, {
-        x: bx + 6,
-        y: by + 20,
-        size: webFit.size,
-        font,
-        color: rgb(0.78, 0.82, 0.9),
-        maxWidth: bw - 12,
+        color: rgb(0.35, 0.40, 0.48),
+        maxWidth: cellW - 20,
       });
     }
   }
@@ -838,39 +915,42 @@ async function renderStickerSheetA4(spec: PrintPackSpec, project: QrProjectRow):
   return Buffer.from(bytes);
 }
 
-export async function renderPrintPackPdfs(project: QrProjectRow, spec: PrintPackSpec): Promise<RenderedFile[]> {
+export async function renderPrintPackPdfs(
+  project: QrProjectRow,
+  spec: PrintPackSpec
+): Promise<RenderedFile[]> {
   const formats = Array.from(new Set(spec.formats ?? []));
-  const out: RenderedFile[] = [];
 
+  const out: RenderedFile[] = [];
   for (const f of formats) {
     if (f === "business_card") {
       out.push({
         key: f,
-        filename: `printpack-business-card-${project.id}.pdf`,
+        filename: `printpack-v${PRINT_RENDER_VERSION}-business-card-${project.id}.pdf`,
         bytes: await renderBusinessCard(spec, project),
       });
     } else if (f === "flyer_a5") {
       out.push({
         key: f,
-        filename: `printpack-flyer-a5-${project.id}.pdf`,
+        filename: `printpack-v${PRINT_RENDER_VERSION}-flyer-a5-${project.id}.pdf`,
         bytes: await renderFlyer(spec, project, "A5"),
       });
     } else if (f === "flyer_a4") {
       out.push({
         key: f,
-        filename: `printpack-flyer-a4-${project.id}.pdf`,
+        filename: `printpack-v${PRINT_RENDER_VERSION}-flyer-a4-${project.id}.pdf`,
         bytes: await renderFlyer(spec, project, "A4"),
       });
     } else if (f === "poster_a3") {
       out.push({
         key: f,
-        filename: `printpack-poster-a3-${project.id}.pdf`,
+        filename: `printpack-v${PRINT_RENDER_VERSION}-poster-a3-${project.id}.pdf`,
         bytes: await renderPosterA3(spec, project),
       });
     } else if (f === "sticker_sheet_a4") {
       out.push({
         key: f,
-        filename: `printpack-stickers-a4-${project.id}.pdf`,
+        filename: `printpack-v${PRINT_RENDER_VERSION}-labels-a4-${project.id}.pdf`,
         bytes: await renderStickerSheetA4(spec, project),
       });
     }
