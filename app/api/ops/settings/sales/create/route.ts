@@ -35,6 +35,19 @@ function isIsoDay(v: unknown): v is string {
   return /^\d{4}-\d{2}-\d{2}$/.test(v);
 }
 
+/**
+ * Important:
+ * ops_manual_sales.day appears to be GENERATED ALWAYS (derived from sale_at).
+ * Therefore we must NOT insert day, only sale_at.
+ *
+ * We still accept `day` from the client and encode it into sale_at (midday UTC)
+ * so that the derived local date remains stable.
+ */
+function saleAtFromDay(day: string): string {
+  // Midday UTC minimizes DST/date-boundary surprises.
+  return `${day}T12:00:00.000Z`;
+}
+
 export async function POST(req: Request) {
   const supabase = await supabaseServer();
   const { data: u } = await supabase.auth.getUser();
@@ -59,31 +72,41 @@ export async function POST(req: Request) {
 
   const body: unknown = await req.json();
 
-  const day = typeof body === "object" && body && "day" in body ? (body as { day: unknown }).day : null;
+  const day =
+    typeof body === "object" && body && "day" in body
+      ? (body as { day: unknown }).day
+      : null;
+
   const businessLineRaw =
     typeof body === "object" && body && "business_line" in body
       ? (body as { business_line: unknown }).business_line
       : null;
+
   const bankAccountId =
     typeof body === "object" && body && "bank_account_id" in body
       ? (body as { bank_account_id: unknown }).bank_account_id
       : null;
+
   const currencyRaw =
     typeof body === "object" && body && "currency" in body
       ? (body as { currency: unknown }).currency
       : null;
+
   const amountCentsRaw =
     typeof body === "object" && body && "amount_cents" in body
       ? (body as { amount_cents: unknown }).amount_cents
       : null;
+
   const paymentMethodRaw =
     typeof body === "object" && body && "payment_method" in body
       ? (body as { payment_method: unknown }).payment_method
       : null;
+
   const notesRaw =
     typeof body === "object" && body && "notes" in body
       ? (body as { notes: unknown }).notes
       : null;
+
   const tagsRaw =
     typeof body === "object" && body && "tags" in body
       ? (body as { tags: unknown }).tags
@@ -95,11 +118,17 @@ export async function POST(req: Request) {
 
   const business_line = assertBusinessLine(businessLineRaw);
   if (!business_line) {
-    return NextResponse.json({ error: "Invalid business_line" }, { status: 400 });
+    return NextResponse.json(
+      { error: "Invalid business_line" },
+      { status: 400 },
+    );
   }
 
   if (typeof bankAccountId !== "string" || !bankAccountId) {
-    return NextResponse.json({ error: "Invalid bank_account_id" }, { status: 400 });
+    return NextResponse.json(
+      { error: "Invalid bank_account_id" },
+      { status: 400 },
+    );
   }
 
   const currency =
@@ -115,7 +144,10 @@ export async function POST(req: Request) {
         : 0;
 
   if (!Number.isFinite(amount_cents) || amount_cents <= 0) {
-    return NextResponse.json({ error: "amount_cents must be > 0" }, { status: 400 });
+    return NextResponse.json(
+      { error: "amount_cents must be > 0" },
+      { status: 400 },
+    );
   }
 
   const payment_method =
@@ -133,13 +165,13 @@ export async function POST(req: Request) {
       ? `manual_sale:${idempotencyKey.trim()}`
       : null;
 
-  // Create ledger entry (append-only)
+  // 1) Ledger entry (append-only)
   const amount = (amount_cents / 100).toFixed(2);
 
   const ledgerInsert = await admin
     .from("ops_ledger_entries")
     .insert({
-      effective_date: day,
+      effective_date: day, // ledger uses the admin-selected day
       bank_account_id: bankAccountId,
       amount,
       entry_type: "customer_payment",
@@ -165,14 +197,14 @@ export async function POST(req: Request) {
 
   const ledger_entry_id = ledgerInsert.data.id as string;
 
-  // Create manual sale row linked to ledger entry
-  const sale_at = new Date().toISOString();
+  // 2) Manual sale row linked to ledger entry
+  // IMPORTANT: DO NOT insert `day` here (DB computes it from sale_at)
+  const sale_at = saleAtFromDay(day);
 
   const manualInsert = await admin
     .from("ops_manual_sales")
     .insert({
       sale_at,
-      day,
       business_line,
       bank_account_id: bankAccountId,
       amount_cents,
