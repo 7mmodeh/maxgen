@@ -50,11 +50,33 @@ export default async function QrStudioLandingPage() {
   return (
     <main className="min-h-screen bg-[#0B1220] text-white">
       <div className="mx-auto w-full max-w-6xl px-6 py-12">
-        <div className="flex items-center justify-between">
+        <div className="flex items-start justify-between gap-4">
           <div>
             <div className="text-sm font-semibold">MaxGen Systems</div>
             <div className="text-xs text-white/60">QR Studio</div>
+
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <div className="text-sm font-semibold">MaxGen Systems</div>
+                <div className="text-xs text-white/60">QR Studio</div>
+
+                <div className="mt-2 flex flex-wrap gap-3 text-xs">
+                  <Link className="text-white/70 hover:text-white" href="/">
+                    ← Home
+                  </Link>
+                  <Link
+                    className="text-white/70 hover:text-white"
+                    href="/#products"
+                  >
+                    View other products
+                  </Link>
+                </div>
+              </div>
+
+              <div className="flex gap-2">{/* existing buttons */}</div>
+            </div>
           </div>
+
           <div className="flex gap-2">
             {entitled ? (
               <Link
@@ -289,8 +311,8 @@ export default async function QrStudioLandingPage() {
             <div className="rounded-2xl border border-white/10 bg-black/30 p-6">
               <div className="text-sm font-semibold">Checkout</div>
               <div className="mt-2 text-xs text-white/60">
-                Purchase unlocks access via server-side entitlements. Limits are
-                enforced automatically.
+                Your purchase is linked to your account, and access is enabled
+                automatically. Plan limits apply as listed.
               </div>
 
               <div className="mt-4">

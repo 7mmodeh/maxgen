@@ -266,7 +266,16 @@ export default async function OnlinePresencePage() {
               <div className="text-sm font-semibold tracking-wide">
                 Maxgen Systems
               </div>
-              <div className="text-xs mx-muted">Online Presence</div>
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="text-xs mx-muted">Online Presence</div>
+                <span className="text-xs mx-muted opacity-50">•</span>
+                <Link
+                  className="text-xs mx-muted hover:opacity-90"
+                  href="/#products"
+                >
+                  View other products
+                </Link>
+              </div>
             </div>
           </Link>
 
