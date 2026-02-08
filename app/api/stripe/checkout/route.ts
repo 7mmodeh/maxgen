@@ -1,5 +1,3 @@
-// app/api/stripe/checkout/route.ts
-
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import { stripe } from "@/src/lib/stripe";
@@ -53,6 +51,11 @@ async function getOrCreateStripeCustomer(userId: string, email?: string | null) 
   if (insErr) throw insErr;
 
   return customer.id;
+}
+
+function returnToForBody(body: CheckoutBody): "/presence" | "/qr-studio/dashboard" {
+  if (body.kind === "presence") return "/presence";
+  return "/qr-studio/dashboard";
 }
 
 export async function POST(req: Request) {
@@ -132,15 +135,18 @@ export async function POST(req: Request) {
       metadata.plan = "onetime";
       mode = "payment";
       line_items = [{ price: STRIPE_PRICES.qr.printPack.onetime, quantity: 1 }];
-    }  else {
+    } else {
       return NextResponse.json({ error: "Invalid request" }, { status: 400 });
     }
+
+    const returnTo = returnToForBody(body);
+    const returnToEncoded = encodeURIComponent(returnTo);
 
     const session = await stripe.checkout.sessions.create({
       mode,
       customer: customerId,
       line_items,
-      success_url: `${baseUrl}/billing/success?session_id={CHECKOUT_SESSION_ID}`,
+      success_url: `${baseUrl}/billing/success?session_id={CHECKOUT_SESSION_ID}&return_to=${returnToEncoded}`,
       cancel_url: `${baseUrl}/billing/cancel`,
       metadata,
     });

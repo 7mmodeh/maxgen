@@ -1,8 +1,11 @@
-// app/qr-studio/page.tsx
 import Link from "next/link";
 import QRCode from "qrcode";
 import { supabaseServer } from "@/src/lib/supabase/server";
-import { hasQrStudioEntitlement } from "@/src/lib/qr/entitlement";
+import {
+  getQrStudioPlan,
+  hasQrPrintPackEntitlement,
+  hasQrStudioEntitlement,
+} from "@/src/lib/qr/entitlement";
 import QrCheckoutButtons from "./_components/QrCheckoutButtons";
 
 export const runtime = "nodejs";
@@ -28,13 +31,22 @@ export default async function QrStudioLandingPage() {
   const { data } = await sb.auth.getUser();
   const user = data.user ?? null;
 
-  const entitled = user ? await hasQrStudioEntitlement(user.id) : false;
+  // Robust, server-side purchase state
+  const [entitled, qrStudioPlan, hasPrintPack] = user
+    ? await Promise.all([
+        hasQrStudioEntitlement(user.id),
+        getQrStudioPlan(user.id),
+        hasQrPrintPackEntitlement(user.id),
+      ])
+    : ([false, null, false] as const);
 
   const [t1Svg, t2Svg, t3Svg] = await Promise.all([
     demoSvg("https://maxgensys.com/qr-demo-t1"),
     demoSvg("https://maxgensys.com/qr-demo-t2"),
     demoSvg("https://maxgensys.com/qr-demo-t3"),
   ]);
+
+  const authed = !!user;
 
   return (
     <main className="min-h-screen bg-[#0B1220] text-white">
@@ -54,10 +66,10 @@ export default async function QrStudioLandingPage() {
               </Link>
             ) : (
               <Link
-                href={user ? "/qr-studio/dashboard" : "/login"}
+                href={authed ? "/qr-studio/dashboard" : "/login"}
                 className="rounded-md border border-white/15 bg-white/5 px-4 py-2 text-sm font-medium hover:bg-white/10"
               >
-                {user ? "My Projects" : "Log in"}
+                {authed ? "My Projects" : "Log in"}
               </Link>
             )}
           </div>
@@ -89,10 +101,10 @@ export default async function QrStudioLandingPage() {
               </a>
 
               <Link
-                href={user ? "/qr-studio/dashboard" : "/signup"}
+                href={authed ? "/qr-studio/dashboard" : "/signup"}
                 className="rounded-md border border-white/15 bg-white/5 px-5 py-2.5 text-sm font-medium hover:bg-white/10"
               >
-                {user ? "Open dashboard" : "Create account"}
+                {authed ? "Open dashboard" : "Create account"}
               </Link>
             </div>
 
@@ -198,12 +210,12 @@ export default async function QrStudioLandingPage() {
             ) : null}
           </div>
 
-          {/* FIXED LAYOUT: stable checkout width on desktop; stacks nicely on smaller screens */}
-          <div className="mt-6 grid gap-4 lg:[grid-template-columns:1fr_420px] xl:[grid-template-columns:1fr_460px]">
+          <div className="mt-6 grid gap-4 lg:[grid-template-columns:1fr_440px] xl:[grid-template-columns:1fr_480px]">
             <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
               <div className="text-sm font-semibold">
                 Rules & limits (read before purchase)
               </div>
+
               <ul className="mt-3 space-y-2 text-sm text-white/70">
                 <li>
                   <span className="font-semibold text-white">
@@ -231,7 +243,49 @@ export default async function QrStudioLandingPage() {
                   <span className="font-semibold text-white">Output:</span> PNG
                   1024×1024 + clean SVG. Static only.
                 </li>
+                <li>
+                  <span className="font-semibold text-white">
+                    Print Pack (€19 add-on):
+                  </span>{" "}
+                  optional upgrade for print-focused delivery (shown in your
+                  dashboard once owned).
+                </li>
               </ul>
+
+              {/* Print Pack info block */}
+              <div className="mt-6 rounded-xl border border-white/10 bg-black/20 p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="text-sm font-semibold">
+                      Print Pack add-on
+                    </div>
+                    <div className="mt-1 text-xs text-white/60">
+                      A one-time upgrade for businesses who print QRs for
+                      signage, menus, stickers, flyers, and shop displays.
+                    </div>
+                  </div>
+                  <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/80">
+                    One-time
+                  </div>
+                </div>
+
+                <ul className="mt-3 space-y-2 text-sm text-white/70">
+                  <li>
+                    <span className="font-semibold text-white">Purpose:</span>{" "}
+                    print-ready assets and guidance for consistent physical
+                    deployment.
+                  </li>
+                  <li>
+                    <span className="font-semibold text-white">Where:</span>{" "}
+                    appears in your dashboard after purchase (server-side
+                    entitlement).
+                  </li>
+                  <li>
+                    <span className="font-semibold text-white">Note:</span> QR
+                    remains static (no tracking/analytics).
+                  </li>
+                </ul>
+              </div>
             </div>
 
             <div className="rounded-2xl border border-white/10 bg-black/30 p-6">
@@ -241,10 +295,29 @@ export default async function QrStudioLandingPage() {
                 enforced automatically.
               </div>
 
-              {/* Let checkout breathe */}
               <div className="mt-4">
-                <QrCheckoutButtons />
+                <QrCheckoutButtons
+                  authed={authed}
+                  qrStudioPlan={qrStudioPlan}
+                  hasPrintPack={hasPrintPack}
+                />
               </div>
+
+              {authed && qrStudioPlan ? (
+                <div className="mt-4 rounded-xl border border-white/10 bg-white/5 p-4">
+                  <div className="text-xs text-white/70">
+                    Current access:
+                    <span className="ml-2 rounded-full border border-white/10 bg-black/20 px-2 py-0.5 text-[11px] text-white/80">
+                      {qrStudioPlan === "monthly" ? "Monthly" : "One-time"}
+                    </span>
+                    {hasPrintPack ? (
+                      <span className="ml-2 rounded-full border border-white/10 bg-black/20 px-2 py-0.5 text-[11px] text-white/80">
+                        Print Pack
+                      </span>
+                    ) : null}
+                  </div>
+                </div>
+              ) : null}
             </div>
           </div>
         </section>
@@ -299,6 +372,10 @@ export default async function QrStudioLandingPage() {
               <li>
                 <span className="font-semibold text-white">Outputs:</span> PNG
                 1024×1024 + clean SVG.
+              </li>
+              <li>
+                <span className="font-semibold text-white">Optional:</span>{" "}
+                Print Pack add-on for print-focused delivery (dashboard unlock).
               </li>
             </ul>
           </div>
@@ -355,7 +432,7 @@ export default async function QrStudioLandingPage() {
                 <li>
                   Usage events for enforcing plan limits: create events logged
                   in <span className="text-white/80">qr_usage_events</span>.
-                  Deleting projects does not remove usage counts.
+                  Deleting projects does not restore usage counts.
                 </li>
                 <li>
                   Billing and entitlement state from Stripe (via server-side
@@ -517,9 +594,7 @@ export default async function QrStudioLandingPage() {
                 <li>
                   Counting is enforced via server-side usage events (
                   <span className="text-white/80">qr_usage_events</span>) with{" "}
-                  <span className="text-white/80">
-                    {'event = "create"'}
-                  </span>{" "}
+                  <span className="text-white/80">{'event = "create"'}</span>
                 </li>
               </ul>
             </div>
@@ -576,7 +651,6 @@ export default async function QrStudioLandingPage() {
           </div>
         </section>
 
-        {/* Footer */}
         <section className="mt-14 rounded-2xl border border-white/10 bg-black/30 p-8">
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>
@@ -603,10 +677,10 @@ export default async function QrStudioLandingPage() {
                 Choose plan
               </a>
               <Link
-                href={user ? "/qr-studio/dashboard" : "/signup"}
+                href={authed ? "/qr-studio/dashboard" : "/signup"}
                 className="rounded-md border border-white/15 bg-white/5 px-5 py-2.5 text-sm font-medium hover:bg-white/10"
               >
-                {user ? "Open dashboard" : "Create account"}
+                {authed ? "Open dashboard" : "Create account"}
               </Link>
             </div>
           </div>
