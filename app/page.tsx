@@ -1,7 +1,33 @@
 // app/page.tsx
 
 import Image from "next/image";
+import Link from "next/link";
 import { FadeIn, Stagger, Item } from "./_components/motion";
+
+function contactEmail(): string {
+  return process.env.NEXT_PUBLIC_CONTACT_EMAIL || "info@maxgensys.com";
+}
+
+function mailtoHref(args: { subject: string; body?: string }): string {
+  const email = contactEmail();
+  const subject = encodeURIComponent(args.subject);
+  const body = encodeURIComponent(args.body ?? "");
+  const query = body
+    ? `?subject=${subject}&body=${body}`
+    : `?subject=${subject}`;
+  return `mailto:${email}${query}`;
+}
+
+type ProductCard = {
+  title: string;
+  subtitle: string;
+  statusLabel: string;
+  statusTone: "live" | "invite";
+  bullets: readonly string[];
+  primaryCta: { label: string; href: string };
+  secondaryCta: { label: string; href: string };
+  footnote?: string;
+};
 
 export default function Home() {
   const heroCards = [
@@ -59,6 +85,68 @@ export default function Home() {
       d: "Expansion is structured, measured, and risk-aware.",
     },
   ] as const;
+
+  const products: readonly ProductCard[] = [
+    {
+      title: "Online Presence",
+      subtitle:
+        "Productized online presence packages for local businesses — fixed scope, fast delivery, owned by you.",
+      statusLabel: "Live",
+      statusTone: "live",
+      bullets: [
+        "Professional website + contact capture",
+        "Booking + scheduling (optional package)",
+        "SEO foundations (optional package)",
+        "Clear docs: scope, delivery, and boundaries",
+      ],
+      primaryCta: { label: "View packages", href: "/online-presence" },
+      secondaryCta: { label: "Read docs", href: "/presence/docs" },
+      footnote:
+        "Best for freelancers, sole traders, and small teams who need credibility and conversions quickly.",
+    },
+    {
+      title: "QR Studio",
+      subtitle:
+        "Clean, scanner-safe static QR codes with locked templates and instant export (PNG + SVG).",
+      statusLabel: "Live",
+      statusTone: "live",
+      bullets: [
+        "Static QR only (no tracking / no redirects)",
+        "Templates T1–T3 (scanner-safe defaults)",
+        "PNG 1024×1024 + clean SVG",
+        "Optional Print Pack add-on",
+      ],
+      primaryCta: { label: "Open QR Studio", href: "/qr-studio" },
+      secondaryCta: { label: "View pricing", href: "/qr-studio#pricing" },
+      footnote:
+        "Best for menus, signage, flyers, stickers, shop displays, and clean brand presentation.",
+    },
+    {
+      title: "Supplies",
+      subtitle:
+        "B2B sourcing channel for selected partners. Controlled onboarding, verified accounts, and curated inventory.",
+      statusLabel: "Invite-only",
+      statusTone: "invite",
+      bullets: [
+        "Private access (approved accounts only)",
+        "Wholesale / B2B supply workflows",
+        "Account verification and controlled pricing",
+        "Limited onboarding capacity",
+      ],
+      primaryCta: {
+        label: "Request access",
+        href: mailtoHref({
+          subject: "Supplies — Request Access",
+          body: "Hi Maxgen Systems,\n\nI would like to request access to Supplies.\n\nBusiness name:\nWebsite (if any):\nIndustry:\nWhat products are you sourcing?\nEstimated monthly volume:\n\nThanks,",
+        }),
+      },
+      secondaryCta: { label: "Contact", href: "#contact" },
+      footnote:
+        "Supplies is intentionally not public. Access is granted to approved partners only.",
+    },
+  ] as const;
+
+  const email = contactEmail();
 
   return (
     <main style={{ background: "var(--mx-bg)", color: "var(--mx-text)" }}>
@@ -122,7 +210,11 @@ export default function Home() {
             </div>
           </div>
 
+          {/* Desktop nav */}
           <nav className="hidden items-center gap-7 md:flex">
+            <a className="text-sm mx-muted hover:opacity-90" href="#products">
+              Products
+            </a>
             <a className="text-sm mx-muted hover:opacity-90" href="#approach">
               Approach
             </a>
@@ -133,18 +225,57 @@ export default function Home() {
               Contact
             </a>
 
-            <a
-              href="#contact"
-              className="rounded-lg px-4 py-2 text-sm font-semibold transition"
+            <div className="ml-2 flex items-center gap-3">
+              <Link className="text-sm mx-muted hover:opacity-90" href="/login">
+                Login
+              </Link>
+              <Link
+                href="/signup"
+                className="rounded-lg border px-3 py-2 text-sm font-semibold transition"
+                style={{
+                  borderColor: "rgba(255,255,255,0.14)",
+                  color: "rgba(255,255,255,0.9)",
+                  background: "rgba(30,41,59,0.25)",
+                }}
+              >
+                Signup
+              </Link>
+
+              <a
+                href="#products"
+                className="rounded-lg px-4 py-2 text-sm font-semibold transition"
+                style={{ background: "var(--mx-cta)", color: "#fff" }}
+              >
+                Explore products
+              </a>
+            </div>
+          </nav>
+
+          {/* Mobile auth + CTA (top-right) */}
+          <div className="flex items-center gap-2 md:hidden">
+            <Link
+              href="/login"
+              className="rounded-lg border px-3 py-2 text-xs font-semibold transition"
+              style={{
+                borderColor: "rgba(255,255,255,0.14)",
+                color: "rgba(255,255,255,0.9)",
+                background: "rgba(30,41,59,0.25)",
+              }}
+            >
+              Login
+            </Link>
+            <Link
+              href="/signup"
+              className="rounded-lg px-3 py-2 text-xs font-semibold transition"
               style={{ background: "var(--mx-cta)", color: "#fff" }}
             >
-              Get in touch
-            </a>
-          </nav>
+              Signup
+            </Link>
+          </div>
         </header>
 
         {/* Hero */}
-        <section className="mx-auto w-full max-w-6xl px-6 pb-16 pt-10 md:pb-24 md:pt-14">
+        <section className="mx-auto w-full max-w-6xl px-6 pb-12 pt-10 md:pb-18 md:pt-14">
           <div className="grid gap-10 md:grid-cols-12 md:items-center">
             <div className="md:col-span-7">
               <FadeIn>
@@ -172,22 +303,22 @@ export default function Home() {
                 </h1>
 
                 <p className="mt-4 max-w-xl mx-lead mx-muted">
-                  Maxgen Systems is a systems-driven parent company focused on
-                  building and operating structured initiatives with enterprise
-                  reliability, disciplined execution, and long-term value.
+                  Maxgen Systems builds and operates structured product lines
+                  with disciplined execution, clear scope, and a reliability
+                  posture designed for longevity.
                 </p>
 
                 <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:items-center">
                   <a
-                    href="mailto:info@maxgensys.com"
+                    href="#products"
                     className="inline-flex items-center justify-center rounded-lg px-5 py-3 text-sm font-semibold transition"
                     style={{ background: "var(--mx-cta)", color: "#fff" }}
                   >
-                    info@maxgensys.com
+                    Explore products
                   </a>
 
                   <a
-                    href="#approach"
+                    href="#contact"
                     className="inline-flex items-center justify-center rounded-lg px-5 py-3 text-sm font-semibold transition"
                     style={{
                       border: "1px solid rgba(255,255,255,0.14)",
@@ -195,7 +326,7 @@ export default function Home() {
                       background: "rgba(30,41,59,0.25)",
                     }}
                   >
-                    Our approach
+                    Contact
                   </a>
                 </div>
               </FadeIn>
@@ -255,7 +386,7 @@ export default function Home() {
                     }}
                   >
                     <div className="text-xs mx-muted">
-                      Core capabilities (abstract)
+                      Core capabilities (overview)
                     </div>
 
                     <Stagger>
@@ -325,9 +456,9 @@ export default function Home() {
                 >
                   <div className="text-sm font-semibold">Positioning</div>
                   <p className="mt-2 text-xs leading-relaxed mx-muted">
-                    Maxgen Systems is presented deliberately as a parent
-                    framework. Specific verticals remain private until formal
-                    launch and partner alignment.
+                    Maxgen Systems operates multiple lines under one governed
+                    framework. Each product has clear boundaries, defined
+                    delivery, and a consistent standard of execution.
                   </p>
                 </div>
               </FadeIn>
@@ -335,6 +466,170 @@ export default function Home() {
           </div>
         </section>
       </div>
+
+      {/* Products */}
+      <section id="products" className="mx-auto w-full max-w-6xl px-6 py-16">
+        <FadeIn>
+          <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+            <div>
+              <h2 className="mx-h2">Products & Business Lines</h2>
+              <p className="mt-3 mx-body mx-muted max-w-2xl">
+                Choose a line based on your objective: visibility and leads,
+                clean QR deployment, or invite-only supply workflows.
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <a
+                href={mailtoHref({
+                  subject: "General inquiry — Maxgen Systems",
+                  body: "Hi Maxgen Systems,\n\nI have a question about your products.\n\nMy request:\n\nThanks,",
+                })}
+                className="rounded-lg border px-4 py-2 text-sm font-semibold transition"
+                style={{
+                  borderColor: "rgba(255,255,255,0.14)",
+                  color: "rgba(255,255,255,0.9)",
+                  background: "rgba(30,41,59,0.25)",
+                }}
+              >
+                Ask a question
+              </a>
+
+              <a
+                href="#contact"
+                className="rounded-lg px-4 py-2 text-sm font-semibold transition"
+                style={{ background: "var(--mx-cta)", color: "#fff" }}
+              >
+                Contact
+              </a>
+            </div>
+          </div>
+        </FadeIn>
+
+        <Stagger>
+          <div className="mt-8 grid gap-4 md:grid-cols-3">
+            {products.map((p) => (
+              <Item key={p.title}>
+                <div
+                  className="h-full rounded-2xl p-6"
+                  style={{
+                    background: "rgba(30,41,59,0.35)",
+                    border: "1px solid rgba(255,255,255,0.08)",
+                  }}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="text-base font-semibold">{p.title}</div>
+                      <div className="mt-2 text-sm leading-relaxed mx-muted">
+                        {p.subtitle}
+                      </div>
+                    </div>
+
+                    <div
+                      className="shrink-0 rounded-full px-3 py-1 text-xs"
+                      style={{
+                        background:
+                          p.statusTone === "live"
+                            ? "rgba(37,99,235,0.14)"
+                            : "rgba(255,255,255,0.08)",
+                        border:
+                          p.statusTone === "live"
+                            ? "1px solid rgba(37,99,235,0.25)"
+                            : "1px solid rgba(255,255,255,0.12)",
+                        color: "rgba(255,255,255,0.9)",
+                      }}
+                    >
+                      {p.statusLabel}
+                    </div>
+                  </div>
+
+                  <ul className="mt-5 space-y-2 text-sm mx-muted">
+                    {p.bullets.map((b) => (
+                      <li key={b} className="flex gap-2">
+                        <span
+                          className="mt-2 h-1.5 w-1.5 rounded-full"
+                          style={{ background: "var(--mx-light-accent)" }}
+                        />
+                        <span>{b}</span>
+                      </li>
+                    ))}
+                  </ul>
+
+                  {p.footnote ? (
+                    <div className="mt-5 text-xs leading-relaxed mx-muted">
+                      {p.footnote}
+                    </div>
+                  ) : null}
+
+                  <div className="mt-6 flex flex-col gap-2">
+                    <Link
+                      href={p.primaryCta.href}
+                      className="inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-semibold transition"
+                      style={{ background: "var(--mx-cta)", color: "#fff" }}
+                    >
+                      {p.primaryCta.label}
+                    </Link>
+
+                    <Link
+                      href={p.secondaryCta.href}
+                      className="inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-semibold transition"
+                      style={{
+                        border: "1px solid rgba(255,255,255,0.14)",
+                        color: "rgba(255,255,255,0.9)",
+                        background: "rgba(30,41,59,0.25)",
+                      }}
+                    >
+                      {p.secondaryCta.label}
+                    </Link>
+                  </div>
+                </div>
+              </Item>
+            ))}
+          </div>
+        </Stagger>
+
+        <FadeIn delay={0.08}>
+          <div
+            className="mt-8 rounded-2xl p-6"
+            style={{
+              background: "rgba(15,23,42,0.45)",
+              border: "1px solid rgba(255,255,255,0.08)",
+            }}
+          >
+            <div className="text-sm font-semibold">How to start</div>
+            <div className="mt-3 grid gap-3 md:grid-cols-3">
+              {[
+                {
+                  t: "1) Pick a product",
+                  d: "Choose the line that matches your outcome: visibility, QR deployment, or invite-only supply.",
+                },
+                {
+                  t: "2) Follow the flow",
+                  d: "Use the docs and routing inside each product. Scope and instructions are always explicit.",
+                },
+                {
+                  t: "3) Deliver & support",
+                  d: "You can contact us anytime using the official company email for help or clarifications.",
+                },
+              ].map((x) => (
+                <div
+                  key={x.t}
+                  className="rounded-xl p-4"
+                  style={{
+                    background: "rgba(30,41,59,0.35)",
+                    border: "1px solid rgba(255,255,255,0.08)",
+                  }}
+                >
+                  <div className="text-sm font-semibold">{x.t}</div>
+                  <div className="mt-2 text-xs leading-relaxed mx-muted">
+                    {x.d}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </FadeIn>
+      </section>
 
       {/* Approach */}
       <section id="approach" className="mx-auto w-full max-w-6xl px-6 py-16">
@@ -435,19 +730,48 @@ export default function Home() {
               <div className="md:col-span-7">
                 <h2 className="mx-h2">Contact</h2>
                 <p className="mt-3 mx-body mx-muted">
-                  For general inquiries or partnership discussions, reach out
-                  via email. We keep the public footprint intentionally lean
-                  until formal initiative announcements.
+                  For general inquiries, support questions, or partnership
+                  discussions, contact us by email.
                 </p>
+
+                <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center">
+                  <a
+                    href={mailtoHref({
+                      subject: "Inquiry — Maxgen Systems",
+                      body: "Hi Maxgen Systems,\n\nI’m contacting you about:\n\n- Product / line:\n- My question:\n\nThanks,",
+                    })}
+                    className="inline-flex items-center justify-center rounded-lg px-5 py-3 text-sm font-semibold transition"
+                    style={{
+                      border: "1px solid rgba(255,255,255,0.14)",
+                      color: "rgba(255,255,255,0.9)",
+                      background: "rgba(30,41,59,0.25)",
+                    }}
+                  >
+                    Email us
+                  </a>
+
+                  <Link
+                    href="/terms"
+                    className="text-sm mx-muted hover:opacity-90"
+                  >
+                    Terms
+                  </Link>
+                  <Link
+                    href="/privacy"
+                    className="text-sm mx-muted hover:opacity-90"
+                  >
+                    Privacy
+                  </Link>
+                </div>
               </div>
 
               <div className="md:col-span-5">
                 <a
-                  href="mailto:info@maxgensys.com"
+                  href={`mailto:${encodeURIComponent(email)}`}
                   className="block rounded-xl px-5 py-4 text-center text-sm font-semibold transition"
                   style={{ background: "var(--mx-cta)", color: "#fff" }}
                 >
-                  info@maxgensys.com
+                  {email}
                 </a>
                 <div className="mt-3 text-center text-xs mx-muted">
                   maxgensys.com
@@ -469,14 +793,30 @@ export default function Home() {
             reserved.
           </div>
 
-          <div className="text-xs mx-muted">
-            Maxgen Systems Limited (Ireland) — CRO: 806565 —{" "}
-            <a
-              href="mailto:info@maxgensys.com"
+          <div className="flex flex-wrap items-center gap-4 text-xs mx-muted">
+            <Link
+              href="/privacy"
               className="underline underline-offset-4 hover:opacity-90"
               style={{ color: "rgba(255,255,255,0.9)" }}
             >
-              info@maxgensys.com
+              Privacy
+            </Link>
+            <Link
+              href="/terms"
+              className="underline underline-offset-4 hover:opacity-90"
+              style={{ color: "rgba(255,255,255,0.9)" }}
+            >
+              Terms
+            </Link>
+            <span>•</span>
+            <span>Maxgen Systems Limited (Ireland) — CRO: 806565</span>
+            <span>•</span>
+            <a
+              href={`mailto:${encodeURIComponent(email)}`}
+              className="underline underline-offset-4 hover:opacity-90"
+              style={{ color: "rgba(255,255,255,0.9)" }}
+            >
+              {email}
             </a>
           </div>
         </div>

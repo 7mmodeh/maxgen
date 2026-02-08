@@ -4,4 +4,6 @@ export const ROUTES = {
   login: "/login",
   signup: "/signup",
   logout: "/logout",
-};
+  privacy: "/privacy",
+  terms: "/terms",
+} as const;
