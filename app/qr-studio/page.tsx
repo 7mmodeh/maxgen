@@ -31,7 +31,6 @@ export default async function QrStudioLandingPage() {
   const { data } = await sb.auth.getUser();
   const user = data.user ?? null;
 
-  // Robust, server-side purchase state
   const [entitled, qrStudioPlan, hasPrintPack] = user
     ? await Promise.all([
         hasQrStudioEntitlement(user.id),
@@ -252,7 +251,6 @@ export default async function QrStudioLandingPage() {
                 </li>
               </ul>
 
-              {/* Print Pack info block */}
               <div className="mt-6 rounded-xl border border-white/10 bg-black/20 p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div>
@@ -595,6 +593,36 @@ export default async function QrStudioLandingPage() {
                   Counting is enforced via server-side usage events (
                   <span className="text-white/80">qr_usage_events</span>) with{" "}
                   <span className="text-white/80">{'event = "create"'}</span>
+                </li>
+              </ul>
+            </div>
+
+            {/* ✅ NEW: Print Pack Terms */}
+            <div>
+              <div className="text-sm font-semibold text-white">
+                Print Pack add-on (premium)
+              </div>
+              <ul className="mt-2 list-disc space-y-1 pl-5">
+                <li>
+                  The Print Pack is an{" "}
+                  <span className="text-white/80">optional</span>,{" "}
+                  <span className="text-white/80">one-time</span> add-on that
+                  unlocks print-focused resources and guidance for deploying
+                  your QR in physical environments (e.g., signage, menus,
+                  stickers, flyers).
+                </li>
+                <li>
+                  The Print Pack <span className="text-white/80">does not</span>{" "}
+                  convert QR Studio into a tracking product: QRs remain{" "}
+                  <span className="text-white/80">static</span> with no
+                  analytics, redirects, or usage tracking.
+                </li>
+                <li>
+                  Access to the Print Pack is determined by{" "}
+                  <span className="text-white/80">
+                    server-side entitlements
+                  </span>{" "}
+                  derived from payment provider webhooks (source of truth).
                 </li>
               </ul>
             </div>
