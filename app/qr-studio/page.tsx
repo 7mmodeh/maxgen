@@ -57,9 +57,6 @@ export default async function QrStudioLandingPage() {
 
             <div className="flex items-start justify-between gap-4">
               <div>
-                <div className="text-sm font-semibold">MaxGen Systems</div>
-                <div className="text-xs text-white/60">QR Studio</div>
-
                 <div className="mt-2 flex flex-wrap gap-3 text-xs">
                   <Link className="text-white/70 hover:text-white" href="/">
                     ← Home
