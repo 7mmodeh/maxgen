@@ -17,6 +17,16 @@ function first(sp: SearchParams, key: string): string | null {
   return Array.isArray(v) ? (v[0] ?? null) : v;
 }
 
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null;
+}
+
+function safeErrorMessage(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  if (isRecord(err) && typeof err.message === "string") return err.message;
+  return "";
+}
+
 function mapUpdateRpcErrorToQuery(code: string): string {
   switch (code) {
     case "edit_limit_reached":
@@ -61,7 +71,7 @@ async function updateProject(id: string, formData: FormData) {
 
   if (error) {
     console.error("[qr update rpc] error:", error);
-    const msg = String((error as { message?: unknown } | null)?.message ?? "");
+    const msg = safeErrorMessage(error);
     const code = mapUpdateRpcErrorToQuery(msg);
     redirect(`/qr-studio/${id}?error=${encodeURIComponent(code)}`);
   }
@@ -92,8 +102,10 @@ export default async function QrProjectPage({
     .select("*")
     .eq("id", id)
     .maybeSingle();
-  if (error || !proj || proj.user_id !== user.id)
+
+  if (error || !proj || proj.user_id !== user.id) {
     redirect("/qr-studio/dashboard");
+  }
 
   const project = proj as QrProjectRow;
   const template = isTemplateId(project.template_id)

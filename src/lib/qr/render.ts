@@ -70,7 +70,6 @@ async function fetchLogoBytesFromPrivateBucket(logoPath: string): Promise<Buffer
 
 function roundedBadgeSvg(w: number, h: number, radius: number): string {
   // Flat, scanner-safe badge: white fill + subtle border (no shadow).
-  // Border is optional but improves “built-in” look on white QR background.
   const stroke = "#E5E7EB"; // neutral-200
   return `
   <svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" xmlns="http://www.w3.org/2000/svg">
@@ -84,7 +83,6 @@ function roundedBadgeSvg(w: number, h: number, radius: number): string {
 }
 
 async function makeRoundedLogo(logoBytes: Buffer, size: number, radius: number): Promise<Buffer> {
-  // Resize logo into a square, then clip it with rounded corners for a premium look.
   const resized = await sharp(logoBytes)
     .resize(size, size, { fit: "contain", background: { r: 255, g: 255, b: 255, alpha: 0 } })
     .png()
@@ -104,15 +102,20 @@ async function makeRoundedLogo(logoBytes: Buffer, size: number, radius: number):
     .toBuffer();
 }
 
-export async function generateQrPng(project: QrProjectRow): Promise<Buffer> {
+export async function generateQrPng(
+  project: QrProjectRow,
+  opts?: { width?: number }
+): Promise<Buffer> {
   const t = assertTemplate(project.template_id, project.template_version);
   const url = normalizeUrl(project.url);
+
+  const width = opts?.width ?? 1024;
 
   const qrPng = await QRCode.toBuffer(url, {
     type: "png",
     errorCorrectionLevel: "H",
     margin: 4, // quiet zone enforced
-    width: 1024,
+    width,
     scale: 1,
   });
 
@@ -123,18 +126,18 @@ export async function generateQrPng(project: QrProjectRow): Promise<Buffer> {
 
   const base = sharp(qrPng);
   const meta = await base.metadata();
-  const size = meta.width ?? 1024;
+  const size = meta.width ?? width;
 
   // Your rule: logo area limited by maxLogoRatio (<= 22%)
   const logoMax = Math.floor(size * t.maxLogoRatio);
 
   // Badge padding (kept conservative for scan safety)
-  const pad = Math.max(12, Math.floor(size * 0.018)); // ~18px at 1024
+  const pad = Math.max(12, Math.floor(size * 0.018));
   const badgeSize = logoMax + pad * 2;
 
   // Rounded corners: “Revolut-like” badge feel
-  const badgeRadius = Math.floor(badgeSize * 0.22); // ~22% radius
-  const logoRadius = Math.floor(logoMax * 0.18); // slightly tighter than badge
+  const badgeRadius = Math.floor(badgeSize * 0.22);
+  const logoRadius = Math.floor(logoMax * 0.18);
 
   // Center positioning
   const left = Math.floor((size - badgeSize) / 2);
@@ -152,8 +155,8 @@ export async function generateQrPng(project: QrProjectRow): Promise<Buffer> {
 
   return base
     .composite([
-      { input: badgePng, left, top }, // rounded white badge
-      { input: roundedLogo, left: logoLeft, top: logoTop }, // clipped logo
+      { input: badgePng, left, top },
+      { input: roundedLogo, left: logoLeft, top: logoTop },
     ])
     .png()
     .toBuffer();
