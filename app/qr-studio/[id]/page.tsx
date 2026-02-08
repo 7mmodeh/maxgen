@@ -1,7 +1,11 @@
+// app/qr-studio/[id]/page.tsx
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { supabaseServer } from "@/src/lib/supabase/server";
-import { hasQrStudioEntitlement } from "@/src/lib/qr/entitlement";
+import {
+  hasQrPrintPackEntitlement,
+  hasQrStudioEntitlement,
+} from "@/src/lib/qr/entitlement";
 import { generateQrSvg, type QrProjectRow } from "@/src/lib/qr/render";
 import { isTemplateId, TEMPLATES_V1 } from "@/src/lib/qr/templates";
 
@@ -97,6 +101,8 @@ export default async function QrProjectPage({
   const entitled = await hasQrStudioEntitlement(user.id);
   if (!entitled) redirect("/qr-studio#pricing");
 
+  const hasPrintPack = await hasQrPrintPackEntitlement(user.id);
+
   const { data: proj, error } = await sb
     .from("qr_projects")
     .select("*")
@@ -155,6 +161,15 @@ export default async function QrProjectPage({
               Back to Dashboard
             </Link>
 
+            {hasPrintPack ? (
+              <Link
+                href={`/qr-studio/${project.id}/print-pack`}
+                className="rounded-md bg-emerald-500 px-4 py-2 text-sm font-semibold text-white hover:opacity-95"
+              >
+                Open Print Pack (Premium)
+              </Link>
+            ) : null}
+
             <a
               className="rounded-md bg-[#2563EB] px-4 py-2 text-sm font-semibold text-white hover:opacity-95"
               href={`/api/qr/download?project_id=${project.id}&format=png`}
@@ -205,7 +220,7 @@ export default async function QrProjectPage({
               </div>
             </div>
 
-            <div className="mt-3 rounded-full border border-white/10 bg-black/20 px-3 py-1 text-xs text-white/70 inline-flex">
+            <div className="mt-3 inline-flex rounded-full border border-white/10 bg-black/20 px-3 py-1 text-xs text-white/70">
               Edits remaining:{" "}
               <span className="ml-1 font-semibold text-white">
                 {editsRemaining}/1
@@ -214,7 +229,7 @@ export default async function QrProjectPage({
 
             <div className="mt-5 rounded-xl bg-white p-4">
               <div
-                className="mx-auto w-full max-w-[320px] [&>svg]:w-full [&>svg]:h-auto [&>svg]:block"
+                className="mx-auto w-full max-w-[320px] [&>svg]:block [&>svg]:h-auto [&>svg]:w-full"
                 dangerouslySetInnerHTML={{ __html: svg }}
               />
             </div>

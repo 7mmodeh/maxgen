@@ -35,7 +35,9 @@ export async function hasQrStudioEntitlement(userId: string): Promise<boolean> {
   return hasEntitlement({ userId, productKey: "qr_studio" });
 }
 
-export async function hasQrPrintPackEntitlement(userId: string): Promise<boolean> {
+export async function hasQrPrintPackEntitlement(
+  userId: string,
+): Promise<boolean> {
   return hasEntitlement({ userId, productKey: "qr_print_pack" });
 }
 
@@ -47,7 +49,9 @@ export async function hasQrStudioAndPrintPack(userId: string): Promise<boolean> 
   return a && b;
 }
 
-export async function getQrStudioPlan(userId: string): Promise<QrStudioPlan | null> {
+export async function getQrStudioPlan(
+  userId: string,
+): Promise<QrStudioPlan | null> {
   const sb = await supabaseServer();
 
   const { data, error } = await sb
@@ -65,7 +69,9 @@ export async function getQrStudioPlan(userId: string): Promise<QrStudioPlan | nu
     return null;
   }
 
-  const plans = (data ?? []).map((r) => String((r as { plan?: unknown }).plan ?? ""));
+  const plans = (data ?? []).map((r) =>
+    String((r as { plan?: unknown }).plan ?? ""),
+  );
 
   if (plans.includes("monthly")) return "monthly";
   if (plans.includes("onetime")) return "onetime";
