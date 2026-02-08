@@ -1,10 +1,9 @@
-// app/qr-studio/[id]/page.tsx
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { supabaseServer } from "@/src/lib/supabase/server";
 import {
-  hasQrPrintPackEntitlement,
   hasQrStudioEntitlement,
+  hasQrPrintPackEntitlement,
 } from "@/src/lib/qr/entitlement";
 import { generateQrSvg, type QrProjectRow } from "@/src/lib/qr/render";
 import { isTemplateId, TEMPLATES_V1 } from "@/src/lib/qr/templates";
@@ -98,10 +97,10 @@ export default async function QrProjectPage({
   const user = data.user;
   if (!user) redirect("/login");
 
-  const entitled = await hasQrStudioEntitlement(user.id);
-  if (!entitled) redirect("/qr-studio#pricing");
+  const entitledStudio = await hasQrStudioEntitlement(user.id);
+  if (!entitledStudio) redirect("/qr-studio#pricing");
 
-  const hasPrintPack = await hasQrPrintPackEntitlement(user.id);
+  const entitledPrint = await hasQrPrintPackEntitlement(user.id);
 
   const { data: proj, error } = await sb
     .from("qr_projects")
@@ -161,12 +160,12 @@ export default async function QrProjectPage({
               Back to Dashboard
             </Link>
 
-            {hasPrintPack ? (
+            {entitledPrint ? (
               <Link
                 href={`/qr-studio/${project.id}/print-pack`}
-                className="rounded-md bg-emerald-500 px-4 py-2 text-sm font-semibold text-white hover:opacity-95"
+                className="rounded-md border border-amber-400/25 bg-amber-400/10 px-4 py-2 text-sm font-semibold text-amber-100 hover:bg-amber-400/15"
               >
-                Open Print Pack (Premium)
+                Print Pack (Premium)
               </Link>
             ) : null}
 
@@ -220,7 +219,7 @@ export default async function QrProjectPage({
               </div>
             </div>
 
-            <div className="mt-3 inline-flex rounded-full border border-white/10 bg-black/20 px-3 py-1 text-xs text-white/70">
+            <div className="mt-3 rounded-full border border-white/10 bg-black/20 px-3 py-1 text-xs text-white/70 inline-flex">
               Edits remaining:{" "}
               <span className="ml-1 font-semibold text-white">
                 {editsRemaining}/1
@@ -229,7 +228,7 @@ export default async function QrProjectPage({
 
             <div className="mt-5 rounded-xl bg-white p-4">
               <div
-                className="mx-auto w-full max-w-[320px] [&>svg]:block [&>svg]:h-auto [&>svg]:w-full"
+                className="mx-auto w-full max-w-[320px] [&>svg]:w-full [&>svg]:h-auto [&>svg]:block"
                 dangerouslySetInnerHTML={{ __html: svg }}
               />
             </div>
