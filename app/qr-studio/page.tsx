@@ -618,11 +618,11 @@ export default async function QrStudioLandingPage() {
                   analytics, redirects, or usage tracking.
                 </li>
                 <li>
-                  Access to the Print Pack is determined by{" "}
+                  Once purchased, the Print Pack is{" "}
                   <span className="text-white/80">
-                    server-side entitlements
+                    unlocked on your account
                   </span>{" "}
-                  derived from payment provider webhooks (source of truth).
+                  and available in your QR Studio dashboard.
                 </li>
               </ul>
             </div>
