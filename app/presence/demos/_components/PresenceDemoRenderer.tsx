@@ -113,13 +113,13 @@ export default function PresenceDemoRenderer(props: Props) {
               <span className="text-xs" style={{ color: "var(--muted)" }}>
                 •
               </span>
-              <link
+              <Link
                 href="/"
                 className="text-sm hover:underline"
                 style={{ color: "var(--muted)" }}
               >
                 Home
-              </link>
+              </Link>
             </div>
           </div>
 
