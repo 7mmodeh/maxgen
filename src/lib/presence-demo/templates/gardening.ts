@@ -6,56 +6,82 @@ const WHATSAPP_HREF = "https://wa.me/353838718415";
 
 export const gardeningDemo: PresenceDemoTemplate = {
   slug: "gardening",
+  businessName: "Pat Quinn’s Gardening & Tree Care",
   nicheLabel: "Gardening & Tree Care",
-  tagline: "Clean, local, trust-first site for quotes via WhatsApp or call.",
+  tagline: "A high-trust one-page site for quotes via WhatsApp or call.",
+
+  theme: {
+    id: "garden",
+    accent: "#16a34a",
+    accentSoft: "#dcfce7",
+    surface: "#ffffff",
+    ink: "#0f172a",
+    muted: "#475569",
+    ring: "#e2e8f0",
+  },
+
   hero: {
-    headline: "Professional Tree Care & Gardening",
+    headline: "Tree Care & Gardening — Fast Quotes, Tidy Work",
     subheadline:
-      "Fast quotes, tidy work, and reliable service — with clear photos of recent jobs and the areas we cover.",
+      "Show your recent work, list your services clearly, and make it easy for customers to request a quote instantly.",
     badges: ["Fully insured", "Free quotes", "Fast response", "Local & reliable"],
     ctas: [
       { label: "WhatsApp for a Quote", href: WHATSAPP_HREF, variant: "primary" },
       { label: "Call Now", href: PHONE_HREF, variant: "secondary" },
     ],
   },
+
+  quickFacts: {
+    ratingText: "4.9",
+    reviewCountText: "120+ reviews",
+    responseTimeText: "Replies fast",
+    insuredText: "Fully insured",
+  },
+
   services: [
-    { title: "Tree Surgery & Removal", description: "Safe cutting, reduction, and removal with tidy cleanup." },
-    { title: "Hedge Cutting", description: "Seasonal trimming, shaping, and maintenance for all hedge types." },
+    { title: "Tree Surgery & Removal", description: "Safe cutting, reduction and removal — tidy cleanup included." },
+    { title: "Hedge Cutting", description: "Shaping, trimming and maintenance for all hedge types." },
     { title: "Garden Clearance", description: "Overgrown gardens cleared quickly — waste removed." },
-    { title: "Landscaping & Design", description: "Fresh layout, planting, and tidy finishes that last." },
-    { title: "Power Washing", description: "Patios, paths, and driveways cleaned for an instant lift." },
-    { title: "Ongoing Maintenance", description: "Keep your garden looking sharp with scheduled visits." },
+    { title: "Landscaping & Design", description: "Planting, layout refresh and durable finishes." },
+    { title: "Power Washing", description: "Patios, paths and driveways cleaned for an instant lift." },
+    { title: "Ongoing Maintenance", description: "Scheduled visits to keep the garden looking sharp." },
   ],
+
   trustBullets: [
-    "Clear upfront quote — no surprises",
-    "Safety-first equipment and practices",
-    "Respectful on-site, tidy finish",
-    "Quick turnaround on messages",
+    "Clear quote and agreed scope before starting",
+    "Safety-first approach and proper equipment",
+    "Respectful on-site and tidy finish",
+    "Quick responses on WhatsApp",
+    "Local service with consistent standards",
+    "Photos of real work — no guesswork",
   ],
-  areasCovered: [
-    "Portarlington",
-    "Co. Offaly",
-    "Co. Laois",
-    "Tullamore",
-    "Edenderry",
-    "Surrounding areas",
-  ],
-    gallery: [
+
+  areasCovered: ["Portarlington", "Co. Offaly", "Co. Laois", "Tullamore", "Edenderry", "Surrounding areas"],
+
+  gallery: [
     { src: "/presence-demos/gardening/garden1.jpg", alt: "Gardening work photo 1", caption: "Recent work" },
     { src: "/presence-demos/gardening/garden2.jpg", alt: "Gardening work photo 2", caption: "Recent work" },
-    { src: "/presence-demos/gardening/garden3.jpg", alt: "Gardening work photo 3", caption: "Recent work" },
+    { src: "/presence-demos/gardening/garden3.JPG", alt: "Gardening work photo 3", caption: "Recent work" },
     { src: "/presence-demos/gardening/garden4.jpg", alt: "Gardening work photo 4", caption: "Recent work" },
     { src: "/presence-demos/gardening/garden5.webp", alt: "Gardening work photo 5", caption: "Recent work" },
   ],
+
+  testimonials: [
+    { name: "A. Murphy", location: "Portarlington", quote: "Quick reply on WhatsApp and the job was spotless. Very tidy finish.", stars: 5 },
+    { name: "J. O’Connor", location: "Offaly", quote: "Arrived on time, clear quote, and the garden looks brand new.", stars: 5 },
+    { name: "S. Kelly", location: "Laois", quote: "Professional equipment and safe work. Would recommend.", stars: 5 },
+  ],
+
   contact: {
     phoneDisplay: PHONE_DISPLAY,
     phoneHref: PHONE_HREF,
     whatsappHref: WHATSAPP_HREF,
-    note: "Demo layout — content will be replaced with your business details.",
+    note: "Demo layout — content will be replaced with your business details. Built by Maxgen Systems.",
   },
+
   seo: {
     title: "Demo — Gardening & Tree Care | Maxgen Systems",
     description:
-      "Live demo of a one-page online presence layout for gardening and tree care businesses: services, gallery, areas covered, and instant WhatsApp/call contact.",
+      "Client-grade local service landing page demo: services, gallery, areas covered, testimonials and instant WhatsApp/call contact.",
   },
 };

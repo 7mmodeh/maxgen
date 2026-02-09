@@ -1,14 +1,14 @@
 "use client";
 
 import Image from "next/image";
-import { JSX, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import type { DemoGalleryImage } from "@/src/lib/presence-demo/types";
 
 type Props = {
   images: readonly DemoGalleryImage[];
 };
 
-export default function DemoGalleryClient(props: Props): JSX.Element {
+export default function DemoGalleryClient(props: Props) {
   const images = props.images;
   const [openIndex, setOpenIndex] = useState<number | null>(null);
 
@@ -19,10 +19,10 @@ export default function DemoGalleryClient(props: Props): JSX.Element {
 
   return (
     <>
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {images.map((img, idx) => (
           <button
-            key={img.src}
+            key={`${img.src}-${idx}`}
             type="button"
             onClick={() => setOpenIndex(idx)}
             className="group overflow-hidden rounded-2xl border border-neutral-200 bg-white text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
@@ -39,7 +39,7 @@ export default function DemoGalleryClient(props: Props): JSX.Element {
               />
             </div>
             <div className="p-4">
-              <p className="text-sm font-medium text-neutral-900">
+              <p className="text-sm font-semibold text-neutral-900">
                 {img.caption ?? "Recent work"}
               </p>
               <p className="mt-1 text-xs text-neutral-600">Tap to enlarge</p>
@@ -57,7 +57,7 @@ export default function DemoGalleryClient(props: Props): JSX.Element {
           onClick={() => setOpenIndex(null)}
         >
           <div
-            className="w-full max-w-4xl overflow-hidden rounded-2xl bg-white shadow-xl"
+            className="w-full max-w-5xl overflow-hidden rounded-2xl bg-white shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between gap-3 border-b border-neutral-200 px-4 py-3">
@@ -89,7 +89,7 @@ export default function DemoGalleryClient(props: Props): JSX.Element {
             <div className="flex items-center justify-between px-4 py-3">
               <button
                 type="button"
-                className="rounded-lg border border-neutral-200 px-3 py-1.5 text-sm text-neutral-700 hover:bg-neutral-50"
+                className="rounded-lg border border-neutral-200 px-3 py-1.5 text-sm text-neutral-700 hover:bg-neutral-50 disabled:opacity-50"
                 onClick={() =>
                   setOpenIndex((s) => (s === null ? 0 : Math.max(0, s - 1)))
                 }
@@ -97,14 +97,16 @@ export default function DemoGalleryClient(props: Props): JSX.Element {
               >
                 Prev
               </button>
+
               <p className="text-xs text-neutral-600">
                 {openIndex !== null
                   ? `${openIndex + 1} / ${images.length}`
                   : ""}
               </p>
+
               <button
                 type="button"
-                className="rounded-lg border border-neutral-200 px-3 py-1.5 text-sm text-neutral-700 hover:bg-neutral-50"
+                className="rounded-lg border border-neutral-200 px-3 py-1.5 text-sm text-neutral-700 hover:bg-neutral-50 disabled:opacity-50"
                 onClick={() =>
                   setOpenIndex((s) =>
                     s === null ? 0 : Math.min(images.length - 1, s + 1),
