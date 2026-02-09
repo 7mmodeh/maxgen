@@ -183,6 +183,48 @@ function hasNonCanceledOrder(
   return orders.some((o) => o.package_key === key && o.status !== "canceled");
 }
 
+const DEMOS: Array<{
+  slug: string;
+  niche: string;
+  headline: string;
+  coverSrc: string;
+  bullets: readonly string[];
+}> = [
+  {
+    slug: "gardening",
+    niche: "Gardening & Tree Care",
+    headline: "Premium lead-gen landing page built for local services.",
+    coverSrc: "/presence-demos/gardening/garden1.jpg",
+    bullets: [
+      "Trust-first hero + quick facts",
+      "WhatsApp/call CTAs in the right places",
+      "Gallery proof + clean services blocks",
+    ],
+  },
+  {
+    slug: "waste-removal",
+    niche: "Waste Removal",
+    headline: "High-trust layout for multi-county coverage businesses.",
+    coverSrc: "/presence-demos/waste-removal/waste1.jpg",
+    bullets: [
+      "Coverage clarity + conversion flow",
+      "Fast enquiry capture (mobile-first)",
+      "Premium trust blocks + testimonials",
+    ],
+  },
+  {
+    slug: "painting",
+    niche: "Painting & Interiors",
+    headline: "Premium look for higher-ticket, visual transformation work.",
+    coverSrc: "/presence-demos/painting/paint1.jpg",
+    bullets: [
+      "Premium positioning + clean hierarchy",
+      "Gallery proof (before/after friendly)",
+      "Lead capture above the fold",
+    ],
+  },
+];
+
 export default async function OnlinePresencePage() {
   const supabase = await supabaseServer();
   const { data: userRes } = await supabase.auth.getUser();
@@ -245,39 +287,42 @@ export default async function OnlinePresencePage() {
 
         {/* Nav */}
         <header className="mx-auto flex w-full max-w-6xl items-center justify-between px-6 py-6">
-          <Link href="/" className="flex items-center gap-3">
-            <div
-              className="relative h-9 w-9 overflow-hidden rounded-md"
-              style={{
-                background: "rgba(255,255,255,0.04)",
-                border: "1px solid rgba(255,255,255,0.10)",
-              }}
-            >
-              <Image
-                src="/logo.png"
-                alt="Maxgen Systems"
-                fill
-                className="object-contain p-1.5"
-                priority
-              />
-            </div>
+          <div className="flex items-center gap-3">
+            <Link href="/" className="flex items-center gap-3">
+              <div
+                className="relative h-9 w-9 overflow-hidden rounded-md"
+                style={{
+                  background: "rgba(255,255,255,0.04)",
+                  border: "1px solid rgba(255,255,255,0.10)",
+                }}
+              >
+                <Image
+                  src="/logo.png"
+                  alt="Maxgen Systems"
+                  fill
+                  className="object-contain p-1.5"
+                  priority
+                />
+              </div>
 
-            <div className="leading-tight">
-              <div className="text-sm font-semibold tracking-wide">
-                Maxgen Systems
-              </div>
-              <div className="flex flex-wrap items-center gap-3">
+              <div className="leading-tight">
+                <div className="text-sm font-semibold tracking-wide">
+                  Maxgen Systems
+                </div>
                 <div className="text-xs mx-muted">Online Presence</div>
-                <span className="text-xs mx-muted opacity-50">•</span>
-                <Link
-                  className="text-xs mx-muted hover:opacity-90"
-                  href="/#products"
-                >
-                  View other products
-                </Link>
               </div>
+            </Link>
+
+            <div className="hidden sm:flex items-center gap-3">
+              <span className="text-xs mx-muted opacity-50">•</span>
+              <Link
+                className="text-xs mx-muted hover:opacity-90"
+                href="/#products"
+              >
+                View other products
+              </Link>
             </div>
-          </Link>
+          </div>
 
           {/* Session + nav */}
           <div className="flex items-center gap-3">
@@ -298,7 +343,6 @@ export default async function OnlinePresencePage() {
                 FAQ
               </a>
 
-              {/* ✅ Docs link added */}
               <Link
                 href={DOCS_HUB_HREF}
                 className="text-sm mx-muted hover:opacity-90"
@@ -317,19 +361,6 @@ export default async function OnlinePresencePage() {
 
             {user ? (
               <div className="flex items-center gap-2">
-                {/* <div
-                  className="hidden md:block rounded-full px-3 py-1 text-xs"
-                  style={{
-                    background: "rgba(15,23,42,0.45)",
-                    border: "1px solid rgba(255,255,255,0.10)",
-                    color: "rgba(255,255,255,0.85)",
-                  }}
-                  title={user.email ?? undefined}
-                >
-                  Signed in{user.email ? `: ${user.email}` : ""}
-                </div> */}
-
-                {/* ✅ Docs button (visible when signed in too) */}
                 <Link
                   href={DOCS_HUB_HREF}
                   className="rounded-lg border px-4 py-2 text-sm font-semibold"
@@ -413,7 +444,6 @@ export default async function OnlinePresencePage() {
                     Get Online
                   </a>
 
-                  {/* ✅ Docs CTA added */}
                   <Link
                     href={DOCS_HUB_HREF}
                     className="inline-flex items-center justify-center rounded-lg px-5 py-3 text-sm font-semibold transition"
@@ -453,7 +483,6 @@ export default async function OnlinePresencePage() {
                   )}
                 </div>
 
-                {/* Optional micro-copy under CTAs */}
                 <div className="mt-3 text-xs mx-muted">
                   Scope, delivery steps, and boundaries are documented for
                   clarity.
@@ -592,6 +621,156 @@ export default async function OnlinePresencePage() {
         </section>
       </div>
 
+      {/* ✅ Live Demo Templates (inserted right below Hero) */}
+      <section className="mx-auto w-full max-w-6xl px-6 pb-14">
+        <FadeIn>
+          <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+            <div>
+              <div
+                className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs"
+                style={{
+                  borderColor: "rgba(255,255,255,0.10)",
+                  background: "rgba(30,41,59,0.35)",
+                  color: "rgba(156,163,175,0.95)",
+                }}
+              >
+                <span
+                  className="h-1.5 w-1.5 rounded-full"
+                  style={{ background: "var(--mx-light-accent)" }}
+                />
+                See what customers actually get
+              </div>
+
+              <h2 className="mt-4 mx-h2">Live demo templates</h2>
+              <p className="mt-2 mx-body mx-muted max-w-2xl">
+                Open a real demo (mobile + desktop). These are premium layouts
+                designed to convert WhatsApp/Facebook visitors into enquiries.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              <Link
+                href="/presence/demos"
+                className="rounded-lg border px-4 py-2 text-sm font-semibold"
+                style={{
+                  border: "1px solid rgba(255,255,255,0.14)",
+                  color: "rgba(255,255,255,0.9)",
+                  background: "rgba(30,41,59,0.25)",
+                }}
+              >
+                View all demos
+              </Link>
+              <a
+                href="#packages"
+                className="rounded-lg px-4 py-2 text-sm font-semibold transition"
+                style={{ background: "var(--mx-cta)", color: "#fff" }}
+              >
+                See packages
+              </a>
+            </div>
+          </div>
+        </FadeIn>
+
+        <Stagger>
+          <div className="mt-8 grid gap-5 md:grid-cols-3">
+            {DEMOS.map((demo) => (
+              <Item key={demo.slug}>
+                <div
+                  className="group h-full overflow-hidden rounded-2xl"
+                  style={{
+                    background: "rgba(30,41,59,0.35)",
+                    border: "1px solid rgba(255,255,255,0.08)",
+                    transition: "transform 150ms ease, border-color 150ms ease",
+                  }}
+                >
+                  <div className="relative aspect-[16/10] w-full overflow-hidden">
+                    <Image
+                      src={demo.coverSrc}
+                      alt={`${demo.niche} demo cover`}
+                      fill
+                      sizes="(max-width: 768px) 100vw, 33vw"
+                      className="object-cover transition duration-300 group-hover:scale-[1.02]"
+                      priority={demo.slug === "gardening"}
+                    />
+                    <div
+                      className="absolute inset-0"
+                      style={{
+                        background:
+                          "linear-gradient(to top, rgba(2,6,23,0.65) 0%, rgba(2,6,23,0) 60%)",
+                      }}
+                    />
+                    <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="truncate text-sm font-semibold text-white">
+                          {demo.niche}
+                        </div>
+                        <div className="truncate text-xs text-white/70">
+                          Premium landing template
+                        </div>
+                      </div>
+                      <div
+                        className="shrink-0 rounded-full px-3 py-1 text-xs font-semibold"
+                        style={{
+                          background: "rgba(15,23,42,0.55)",
+                          border: "1px solid rgba(255,255,255,0.14)",
+                          color: "rgba(255,255,255,0.92)",
+                        }}
+                      >
+                        DEMO
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="p-6">
+                    <div className="text-sm font-semibold">{demo.headline}</div>
+
+                    <ul className="mt-4 space-y-2 text-xs leading-relaxed">
+                      {demo.bullets.map((b) => (
+                        <li key={b} className="flex gap-2">
+                          <span
+                            className="mt-1 h-2 w-2 rounded-full"
+                            style={{ background: "var(--mx-light-accent)" }}
+                          />
+                          <span className="mx-muted" style={{ opacity: 0.95 }}>
+                            {b}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+
+                    <div className="mt-5 grid gap-2">
+                      <Link
+                        href={`/presence/demos/${demo.slug}`}
+                        className="inline-flex w-full items-center justify-center rounded-lg px-5 py-3 text-sm font-semibold transition"
+                        style={{ background: "var(--mx-cta)", color: "#fff" }}
+                      >
+                        Open demo
+                      </Link>
+                      <Link
+                        href="/presence/demos"
+                        className="inline-flex w-full items-center justify-center rounded-lg px-5 py-3 text-sm font-semibold"
+                        style={{
+                          border: "1px solid rgba(255,255,255,0.14)",
+                          color: "rgba(255,255,255,0.9)",
+                          background: "rgba(30,41,59,0.25)",
+                        }}
+                      >
+                        View all demos
+                      </Link>
+                    </div>
+
+                    <div className="mt-3 text-[11px] mx-muted leading-relaxed">
+                      Demo content is placeholder. Real sites use your branding,
+                      services, areas, and contact channels.
+                    </div>
+                  </div>
+                </div>
+              </Item>
+            ))}
+          </div>
+        </Stagger>
+      </section>
+
       {/* Packages */}
       <section id="packages" className="mx-auto w-full max-w-6xl px-6 py-14">
         <FadeIn>
@@ -603,7 +782,6 @@ export default async function OnlinePresencePage() {
                 automation and competitiveness you need.
               </p>
 
-              {/* ✅ Small docs link in header area */}
               <div className="mt-3 text-sm">
                 <Link
                   href={DOCS_HUB_HREF}
@@ -792,7 +970,6 @@ export default async function OnlinePresencePage() {
                         />
                       )}
 
-                      {/* ✅ Tiny docs link under purchase actions */}
                       <div className="mt-3 text-[11px] mx-muted">
                         <Link
                           href={DOCS_HUB_HREF}
