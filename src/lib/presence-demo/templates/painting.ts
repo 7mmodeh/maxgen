@@ -6,14 +6,14 @@ const WHATSAPP_HREF = "https://wa.me/353838718415";
 
 export const paintingDemo: PresenceDemoTemplate = {
   slug: "painting",
-  businessName: "Prestige Painting Ireland",
+  businessName: "MaxGen",
   nicheLabel: "Painting & Interiors",
-  tagline: "Premium, high-end layout with strong visual hierarchy and trust.",
+  tagline: "Premium lead-gen landing page demo.",
 
   theme: {
     id: "premium",
-    accent: "#111827",
-    accentSoft: "#f1f5f9",
+    accent: "#b45309",
+    accentSoft: "#fff7ed",
     surface: "#ffffff",
     ink: "#0f172a",
     muted: "#475569",
@@ -23,8 +23,8 @@ export const paintingDemo: PresenceDemoTemplate = {
   hero: {
     headline: "Painting, Panelling & Interior Finishes",
     subheadline:
-      "A premium landing page that matches your brand: transformations, services, testimonials and a fast quote flow.",
-    badges: ["Premium finish", "Before/after style gallery", "Clean worksite", "Fast quotes"],
+      "A premium landing page built for high-quality leads: transformations, services, testimonials and a fast quote flow above the fold.",
+    badges: ["Premium finish", "Clean worksite", "Prep done right", "Fast quotes"],
     ctas: [
       { label: "WhatsApp for a Quote", href: WHATSAPP_HREF, variant: "primary" },
       { label: "Call Now", href: PHONE_HREF, variant: "secondary" },
@@ -52,7 +52,7 @@ export const paintingDemo: PresenceDemoTemplate = {
     "Clear quote and timeline",
     "Finish-focused approach",
     "Photos that prove quality",
-    "Premium look that matches the brand name",
+    "Premium look that matches the service level",
     "Simple quote flow that converts high-value leads",
   ],
 
@@ -67,21 +67,21 @@ export const paintingDemo: PresenceDemoTemplate = {
   ],
 
   testimonials: [
-    { name: "K. Ahmed", location: "Dublin", quote: "Very clean finish and great attention to detail.", stars: 5 },
-    { name: "L. Byrne", location: "Wicklow", quote: "The panelling looks unreal — professional work.", stars: 5 },
-    { name: "T. Murphy", location: "Kildare", quote: "Quick quote, clear timeline, and the result is premium.", stars: 5 },
+    { name: "Customer", location: "Dublin", quote: "Very clean finish and great attention to detail.", stars: 5 },
+    { name: "Customer", location: "Wicklow", quote: "The panelling looks unreal — professional work.", stars: 5 },
+    { name: "Customer", location: "Kildare", quote: "Quick quote, clear timeline, and the result is premium.", stars: 5 },
   ],
 
   contact: {
     phoneDisplay: PHONE_DISPLAY,
     phoneHref: PHONE_HREF,
     whatsappHref: WHATSAPP_HREF,
-    note: "Demo layout — content will be replaced with your business details. Built by Maxgen Systems.",
+    note: "Demo layout — replace with your business details. Built by Maxgen Systems.",
   },
 
   seo: {
     title: "Demo — Painting & Interiors | Maxgen Systems",
     description:
-      "Premium client-grade landing page demo for painting & interiors: gallery, services, testimonials, areas and instant WhatsApp/call contact.",
+      "Premium client-grade landing page demo for painting & interiors: hero + quote form, gallery, services, testimonials and instant WhatsApp/call contact.",
   },
 };

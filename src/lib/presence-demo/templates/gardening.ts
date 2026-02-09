@@ -6,13 +6,13 @@ const WHATSAPP_HREF = "https://wa.me/353838718415";
 
 export const gardeningDemo: PresenceDemoTemplate = {
   slug: "gardening",
-  businessName: "Pat Quinn’s Gardening & Tree Care",
+  businessName: "MaxGen",
   nicheLabel: "Gardening & Tree Care",
-  tagline: "A high-trust one-page site for quotes via WhatsApp or call.",
+  tagline: "Premium local service landing page demo.",
 
   theme: {
     id: "garden",
-    accent: "#16a34a",
+    accent: "#15803d",
     accentSoft: "#dcfce7",
     surface: "#ffffff",
     ink: "#0f172a",
@@ -21,10 +21,10 @@ export const gardeningDemo: PresenceDemoTemplate = {
   },
 
   hero: {
-    headline: "Tree Care & Gardening — Fast Quotes, Tidy Work",
+    headline: "Gardening & Tree Care — Fast Quotes, Tidy Finish",
     subheadline:
-      "Show your recent work, list your services clearly, and make it easy for customers to request a quote instantly.",
-    badges: ["Fully insured", "Free quotes", "Fast response", "Local & reliable"],
+      "A premium one-page site that shows your services, recent work, areas covered and a fast quote flow — designed to convert visitors into enquiries.",
+    badges: ["Fully insured", "Free quotes", "Fast response", "Clean finish"],
     ctas: [
       { label: "WhatsApp for a Quote", href: WHATSAPP_HREF, variant: "primary" },
       { label: "Call Now", href: PHONE_HREF, variant: "secondary" },
@@ -33,7 +33,7 @@ export const gardeningDemo: PresenceDemoTemplate = {
 
   quickFacts: {
     ratingText: "4.9",
-    reviewCountText: "120+ reviews",
+    reviewCountText: "100+ reviews",
     responseTimeText: "Replies fast",
     insuredText: "Fully insured",
   },
@@ -67,21 +67,21 @@ export const gardeningDemo: PresenceDemoTemplate = {
   ],
 
   testimonials: [
-    { name: "A. Murphy", location: "Portarlington", quote: "Quick reply on WhatsApp and the job was spotless. Very tidy finish.", stars: 5 },
-    { name: "J. O’Connor", location: "Offaly", quote: "Arrived on time, clear quote, and the garden looks brand new.", stars: 5 },
-    { name: "S. Kelly", location: "Laois", quote: "Professional equipment and safe work. Would recommend.", stars: 5 },
+    { name: "Customer", location: "Offaly", quote: "Fast reply and a very tidy finish. Clear quote upfront.", stars: 5 },
+    { name: "Customer", location: "Laois", quote: "Professional equipment and safe work — highly recommended.", stars: 5 },
+    { name: "Customer", location: "Portarlington", quote: "Easy to book and the job was done quickly.", stars: 5 },
   ],
 
   contact: {
     phoneDisplay: PHONE_DISPLAY,
     phoneHref: PHONE_HREF,
     whatsappHref: WHATSAPP_HREF,
-    note: "Demo layout — content will be replaced with your business details. Built by Maxgen Systems.",
+    note: "Demo layout — replace with your business details. Built by Maxgen Systems.",
   },
 
   seo: {
     title: "Demo — Gardening & Tree Care | Maxgen Systems",
     description:
-      "Client-grade local service landing page demo: services, gallery, areas covered, testimonials and instant WhatsApp/call contact.",
+      "Premium client landing page demo: hero + quote form, services, gallery, areas covered, testimonials, and instant WhatsApp/call contact.",
   },
 };

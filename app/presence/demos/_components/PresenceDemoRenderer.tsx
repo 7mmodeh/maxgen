@@ -10,10 +10,17 @@ type Props = {
 type CssVars = React.CSSProperties & {
   ["--accent"]?: string;
   ["--accentSoft"]?: string;
+  ["--accentSoft2"]?: string;
   ["--ink"]?: string;
   ["--muted"]?: string;
   ["--ring"]?: string;
+  ["--shadow"]?: string;
 };
+
+function safeServiceOptions(titles: readonly string[]): readonly string[] {
+  const uniq = Array.from(new Set(titles.map((t) => t.trim()).filter(Boolean)));
+  return uniq.slice(0, 8);
+}
 
 export default function PresenceDemoRenderer(props: Props) {
   const tpl = getPresenceDemo(props.slug);
@@ -36,24 +43,32 @@ export default function PresenceDemoRenderer(props: Props) {
   const vars: CssVars = {
     ["--accent"]: tpl.theme.accent,
     ["--accentSoft"]: tpl.theme.accentSoft,
+    ["--accentSoft2"]:
+      tpl.theme.id === "premium" ? "#fff7ed" : tpl.theme.accentSoft,
     ["--ink"]: tpl.theme.ink,
     ["--muted"]: tpl.theme.muted,
     ["--ring"]: tpl.theme.ring,
+    ["--shadow"]: "0 20px 60px rgba(2, 6, 23, 0.10)",
   };
+
+  const serviceOptions = safeServiceOptions(tpl.services.map((s) => s.title));
 
   return (
     <main className="min-h-screen" style={vars}>
-      {/* Top bar (client site identity) */}
-      <header className="border-b" style={{ borderColor: "var(--ring)" }}>
-        <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-4 py-4">
+      {/* Client-style top bar */}
+      <header
+        className="sticky top-0 z-30 border-b bg-white/85 backdrop-blur"
+        style={{ borderColor: "var(--ring)" }}
+      >
+        <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-3 px-4 py-3">
           <div className="min-w-0">
             <p
-              className="truncate text-lg font-semibold"
+              className="truncate text-base font-semibold"
               style={{ color: "var(--ink)" }}
             >
               {tpl.businessName}
             </p>
-            <p className="truncate text-sm" style={{ color: "var(--muted)" }}>
+            <p className="truncate text-xs" style={{ color: "var(--muted)" }}>
               {tpl.nicheLabel}
             </p>
           </div>
@@ -61,7 +76,7 @@ export default function PresenceDemoRenderer(props: Props) {
           <div className="flex shrink-0 items-center gap-2">
             <a
               href={tpl.contact.phoneHref}
-              className="hidden rounded-xl border px-3 py-2 text-sm font-semibold sm:inline-flex"
+              className="hidden rounded-xl border bg-white px-3 py-2 text-sm font-semibold sm:inline-flex"
               style={{ borderColor: "var(--ring)", color: "var(--ink)" }}
             >
               Call
@@ -77,231 +92,351 @@ export default function PresenceDemoRenderer(props: Props) {
         </div>
       </header>
 
-      {/* Body */}
-      <div className="mx-auto w-full max-w-6xl px-4 py-8">
-        <div className="mb-6">
-          <Link
-            href="/presence/demos"
-            className="text-sm hover:underline"
-            style={{ color: "var(--muted)" }}
-          >
-            ← Back to demos
-          </Link>
-        </div>
-
-        {/* Hero: conversion-first */}
-        <section className="grid gap-6 lg:grid-cols-12">
-          <div
-            className="lg:col-span-7 rounded-3xl border bg-white p-6 shadow-sm sm:p-8"
-            style={{ borderColor: "var(--ring)" }}
-          >
-            <div
-              className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold"
-              style={{ background: "var(--accentSoft)", color: "var(--ink)" }}
-            >
-              Free Quotes • Fast Response
-            </div>
-
-            <h1
-              className="mt-4 text-3xl font-semibold tracking-tight sm:text-4xl"
-              style={{ color: "var(--ink)" }}
-            >
-              {tpl.hero.headline}
-            </h1>
-            <p
-              className="mt-3 text-base sm:text-lg"
-              style={{ color: "var(--muted)" }}
-            >
-              {tpl.hero.subheadline}
-            </p>
-
-            <div className="mt-5 flex flex-wrap gap-2">
-              {tpl.hero.badges.map((b) => (
-                <span
-                  key={b}
-                  className="rounded-full border px-3 py-1 text-xs"
-                  style={{ borderColor: "var(--ring)", color: "var(--muted)" }}
-                >
-                  {b}
-                </span>
-              ))}
-            </div>
-
-            <div className="mt-6 flex flex-wrap gap-3">
-              <a
-                href={tpl.contact.whatsappHref}
-                className="rounded-2xl px-5 py-3 text-sm font-semibold text-white shadow-sm"
-                style={{ background: "var(--accent)" }}
+      {/* Hero backdrop */}
+      <section
+        className="relative overflow-hidden"
+        style={{
+          background:
+            "radial-gradient(1200px 400px at 20% 10%, var(--accentSoft) 0%, rgba(255,255,255,0) 60%), radial-gradient(900px 420px at 80% 20%, var(--accentSoft2) 0%, rgba(255,255,255,0) 60%)",
+        }}
+      >
+        <div className="mx-auto w-full max-w-6xl px-4 py-8">
+          <div className="mb-6">
+            <div className="flex flex-wrap items-center gap-3">
+              <Link
+                href="/presence/demos"
+                className="text-sm hover:underline"
+                style={{ color: "var(--muted)" }}
               >
-                WhatsApp for a Quote
-              </a>
-              <a
-                href={tpl.contact.phoneHref}
-                className="rounded-2xl border bg-white px-5 py-3 text-sm font-semibold"
-                style={{ borderColor: "var(--ring)", color: "var(--ink)" }}
+                ← Back to demos
+              </Link>
+              <span className="text-xs" style={{ color: "var(--muted)" }}>
+                •
+              </span>
+              <link
+                href="/"
+                className="text-sm hover:underline"
+                style={{ color: "var(--muted)" }}
               >
-                Call Now
-              </a>
-            </div>
-
-            <div className="mt-4 flex flex-wrap gap-3">
-              <a
-                href="/docs/maxgen-presence-sales-sheet.pdf"
-                target="_blank"
-                rel="noreferrer"
-                className="rounded-xl border bg-white px-4 py-2 text-sm font-semibold"
-                style={{ borderColor: "var(--ring)", color: "var(--ink)" }}
-              >
-                View Sales Sheet (PDF)
-              </a>
-              <a
-                href="/docs/maxgen-presence-handbook.pdf"
-                target="_blank"
-                rel="noreferrer"
-                className="rounded-xl border bg-white px-4 py-2 text-sm font-semibold"
-                style={{ borderColor: "var(--ring)", color: "var(--ink)" }}
-              >
-                View Handbook (PDF)
-              </a>
+                Home
+              </link>
             </div>
           </div>
 
-          {/* Trust card */}
-          <aside
-            className="lg:col-span-5 rounded-3xl border bg-white p-6 shadow-sm sm:p-8"
-            style={{ borderColor: "var(--ring)" }}
-          >
-            <p
-              className="text-sm font-semibold"
-              style={{ color: "var(--ink)" }}
-            >
-              Quick trust snapshot
-            </p>
-
-            <div className="mt-4 grid gap-3">
+          {/* Premium LP layout: hero + form above the fold */}
+          <div className="grid gap-6 lg:grid-cols-12">
+            {/* Left: copy + trust strip */}
+            <div className="lg:col-span-7">
               <div
-                className="rounded-2xl border p-4"
-                style={{ borderColor: "var(--ring)" }}
+                className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold"
+                style={{ background: "var(--accentSoft)", color: "var(--ink)" }}
               >
-                <p className="text-xs" style={{ color: "var(--muted)" }}>
-                  Rating
-                </p>
-                <p
-                  className="mt-1 text-lg font-semibold"
-                  style={{ color: "var(--ink)" }}
-                >
-                  ★ {tpl.quickFacts.ratingText}{" "}
+                Free Quotes • Fast Response • Local Service
+              </div>
+
+              <h1
+                className="mt-4 text-3xl font-semibold tracking-tight sm:text-4xl"
+                style={{ color: "var(--ink)" }}
+              >
+                {tpl.hero.headline}
+              </h1>
+
+              <p
+                className="mt-3 text-base sm:text-lg"
+                style={{ color: "var(--muted)" }}
+              >
+                {tpl.hero.subheadline}
+              </p>
+
+              <div className="mt-5 flex flex-wrap gap-2">
+                {tpl.hero.badges.map((b) => (
                   <span
-                    className="text-sm font-medium"
-                    style={{ color: "var(--muted)" }}
+                    key={b}
+                    className="rounded-full border bg-white px-3 py-1 text-xs"
+                    style={{
+                      borderColor: "var(--ring)",
+                      color: "var(--muted)",
+                    }}
                   >
-                    ({tpl.quickFacts.reviewCountText})
+                    {b}
                   </span>
-                </p>
+                ))}
               </div>
 
+              {/* Trust strip (premium LP style) */}
               <div
-                className="rounded-2xl border p-4"
-                style={{ borderColor: "var(--ring)" }}
+                className="mt-6 grid gap-3 rounded-3xl border bg-white p-5 shadow-sm sm:grid-cols-4"
+                style={{
+                  borderColor: "var(--ring)",
+                  boxShadow: "var(--shadow)",
+                }}
               >
-                <p className="text-xs" style={{ color: "var(--muted)" }}>
-                  Response
-                </p>
+                <div>
+                  <p className="text-xs" style={{ color: "var(--muted)" }}>
+                    Rating
+                  </p>
+                  <p
+                    className="mt-1 text-base font-semibold"
+                    style={{ color: "var(--ink)" }}
+                  >
+                    ★ {tpl.quickFacts.ratingText}
+                  </p>
+                  <p className="text-xs" style={{ color: "var(--muted)" }}>
+                    {tpl.quickFacts.reviewCountText}
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-xs" style={{ color: "var(--muted)" }}>
+                    Response
+                  </p>
+                  <p
+                    className="mt-1 text-base font-semibold"
+                    style={{ color: "var(--ink)" }}
+                  >
+                    {tpl.quickFacts.responseTimeText}
+                  </p>
+                  <p className="text-xs" style={{ color: "var(--muted)" }}>
+                    WhatsApp / Call
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-xs" style={{ color: "var(--muted)" }}>
+                    Assurance
+                  </p>
+                  <p
+                    className="mt-1 text-base font-semibold"
+                    style={{ color: "var(--ink)" }}
+                  >
+                    {tpl.quickFacts.insuredText}
+                  </p>
+                  <p className="text-xs" style={{ color: "var(--muted)" }}>
+                    Clear scope first
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-xs" style={{ color: "var(--muted)" }}>
+                    Coverage
+                  </p>
+                  <p
+                    className="mt-1 text-base font-semibold"
+                    style={{ color: "var(--ink)" }}
+                  >
+                    {tpl.areasCovered.length}+ areas
+                  </p>
+                  <p className="text-xs" style={{ color: "var(--muted)" }}>
+                    Listed below
+                  </p>
+                </div>
+              </div>
+
+              {/* Primary CTAs */}
+              <div className="mt-6 flex flex-wrap gap-3">
+                <a
+                  href={tpl.contact.whatsappHref}
+                  className="rounded-2xl px-5 py-3 text-sm font-semibold text-white shadow-sm"
+                  style={{ background: "var(--accent)" }}
+                >
+                  WhatsApp for a Quote
+                </a>
+                <a
+                  href={tpl.contact.phoneHref}
+                  className="rounded-2xl border bg-white px-5 py-3 text-sm font-semibold"
+                  style={{ borderColor: "var(--ring)", color: "var(--ink)" }}
+                >
+                  Call Now
+                </a>
+              </div>
+
+              {/* Docs buttons */}
+              <div className="mt-4 flex flex-wrap gap-3">
+                <a
+                  href="/docs/maxgen-presence-sales-sheet.pdf"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="rounded-xl border bg-white px-4 py-2 text-sm font-semibold"
+                  style={{ borderColor: "var(--ring)", color: "var(--ink)" }}
+                >
+                  View Sales Sheet (PDF)
+                </a>
+                <a
+                  href="/docs/maxgen-presence-handbook.pdf"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="rounded-xl border bg-white px-4 py-2 text-sm font-semibold"
+                  style={{ borderColor: "var(--ring)", color: "var(--ink)" }}
+                >
+                  View Handbook (PDF)
+                </a>
+              </div>
+            </div>
+
+            {/* Right: premium quote form card (above fold) */}
+            <aside className="lg:col-span-5">
+              <div
+                className="rounded-3xl border bg-white p-6 shadow-sm sm:p-7"
+                style={{
+                  borderColor: "var(--ring)",
+                  boxShadow: "var(--shadow)",
+                }}
+              >
                 <p
-                  className="mt-1 text-base font-semibold"
+                  className="text-sm font-semibold"
                   style={{ color: "var(--ink)" }}
                 >
-                  {tpl.quickFacts.responseTimeText}
+                  Get a fast quote
                 </p>
-              </div>
+                <p className="mt-1 text-sm" style={{ color: "var(--muted)" }}>
+                  Send details — we’ll reply quickly with next steps.
+                </p>
 
-              <div
-                className="rounded-2xl border p-4"
-                style={{ borderColor: "var(--ring)" }}
-              >
-                <p className="text-xs" style={{ color: "var(--muted)" }}>
-                  Assurance
-                </p>
-                <p
-                  className="mt-1 text-base font-semibold"
-                  style={{ color: "var(--ink)" }}
-                >
-                  {tpl.quickFacts.insuredText}
-                </p>
-              </div>
-
-              <div
-                className="rounded-2xl border p-4"
-                style={{ borderColor: "var(--ring)" }}
-              >
-                <p className="text-xs" style={{ color: "var(--muted)" }}>
-                  Areas covered
-                </p>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {tpl.areasCovered.slice(0, 5).map((a) => (
+                <form className="mt-5 grid gap-4">
+                  <label className="grid gap-2">
                     <span
-                      key={a}
-                      className="rounded-full px-3 py-1 text-xs"
+                      className="text-sm font-semibold"
+                      style={{ color: "var(--ink)" }}
+                    >
+                      Name
+                    </span>
+                    <input
+                      className="rounded-xl border px-3 py-2 text-sm"
+                      style={{ borderColor: "var(--ring)" }}
+                      placeholder="Your name"
+                      name="name"
+                      autoComplete="name"
+                    />
+                  </label>
+
+                  <label className="grid gap-2">
+                    <span
+                      className="text-sm font-semibold"
+                      style={{ color: "var(--ink)" }}
+                    >
+                      Phone
+                    </span>
+                    <input
+                      className="rounded-xl border px-3 py-2 text-sm"
+                      style={{ borderColor: "var(--ring)" }}
+                      placeholder="+353…"
+                      name="phone"
+                      autoComplete="tel"
+                    />
+                  </label>
+
+                  <label className="grid gap-2">
+                    <span
+                      className="text-sm font-semibold"
+                      style={{ color: "var(--ink)" }}
+                    >
+                      Service
+                    </span>
+                    <select
+                      className="rounded-xl border bg-white px-3 py-2 text-sm"
                       style={{
-                        background: "var(--accentSoft)",
+                        borderColor: "var(--ring)",
+                        color: "var(--ink)",
+                      }}
+                      name="service"
+                      defaultValue=""
+                    >
+                      <option value="" disabled>
+                        Select a service
+                      </option>
+                      {serviceOptions.map((opt) => (
+                        <option key={opt} value={opt}>
+                          {opt}
+                        </option>
+                      ))}
+                      <option value="Other">Other</option>
+                    </select>
+                  </label>
+
+                  <label className="grid gap-2">
+                    <span
+                      className="text-sm font-semibold"
+                      style={{ color: "var(--ink)" }}
+                    >
+                      Message
+                    </span>
+                    <textarea
+                      className="min-h-[110px] rounded-xl border px-3 py-2 text-sm"
+                      style={{ borderColor: "var(--ring)" }}
+                      placeholder="Tell us what you need (photos help)."
+                      name="message"
+                    />
+                  </label>
+
+                  <div className="grid gap-3">
+                    <a
+                      href={tpl.contact.whatsappHref}
+                      className="rounded-2xl px-5 py-3 text-center text-sm font-semibold text-white shadow-sm"
+                      style={{ background: "var(--accent)" }}
+                    >
+                      Send via WhatsApp
+                    </a>
+
+                    <a
+                      href={tpl.contact.phoneHref}
+                      className="rounded-2xl border bg-white px-5 py-3 text-center text-sm font-semibold"
+                      style={{
+                        borderColor: "var(--ring)",
                         color: "var(--ink)",
                       }}
                     >
-                      {a}
-                    </span>
-                  ))}
-                </div>
+                      Or call now
+                    </a>
+
+                    <p className="text-xs" style={{ color: "var(--muted)" }}>
+                      Demo form only — your live site can route form submissions
+                      by email or CRM.
+                    </p>
+                  </div>
+                </form>
               </div>
-            </div>
-          </aside>
-        </section>
-
-        {/* Recent work */}
-        <section className="mt-10">
-          <div className="flex items-end justify-between gap-4">
-            <div>
-              <h2
-                className="text-xl font-semibold tracking-tight"
-                style={{ color: "var(--ink)" }}
-              >
-                Recent Work
-              </h2>
-              <p className="mt-1 text-sm" style={{ color: "var(--muted)" }}>
-                Real photos build trust before the customer even calls.
-              </p>
-            </div>
+            </aside>
           </div>
+        </div>
+      </section>
 
-          <div className="mt-5">
-            <PresenceDemoGallery images={tpl.gallery} />
+      {/* Main content sections */}
+      <div className="mx-auto w-full max-w-6xl px-4 pb-24">
+        {/* Services: premium cards */}
+        <section className="mt-8">
+          <div className="flex flex-col gap-1">
+            <h2
+              className="text-xl font-semibold tracking-tight"
+              style={{ color: "var(--ink)" }}
+            >
+              Services
+            </h2>
+            <p className="text-sm" style={{ color: "var(--muted)" }}>
+              Clear, scannable services — built to convert Google/Facebook
+              visitors.
+            </p>
           </div>
-        </section>
-
-        {/* Services */}
-        <section className="mt-10">
-          <h2
-            className="text-xl font-semibold tracking-tight"
-            style={{ color: "var(--ink)" }}
-          >
-            Services
-          </h2>
-          <p className="mt-1 text-sm" style={{ color: "var(--muted)" }}>
-            A clear list helps customers understand exactly what you offer.
-          </p>
 
           <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {tpl.services.map((s) => (
               <div
                 key={s.title}
-                className="rounded-2xl border bg-white p-5 shadow-sm"
+                className="rounded-2xl border bg-white p-6 shadow-sm"
                 style={{ borderColor: "var(--ring)" }}
               >
-                <p
-                  className="text-base font-semibold"
-                  style={{ color: "var(--ink)" }}
-                >
-                  {s.title}
-                </p>
+                <div className="flex items-start justify-between gap-3">
+                  <p
+                    className="text-base font-semibold"
+                    style={{ color: "var(--ink)" }}
+                  >
+                    {s.title}
+                  </p>
+                  <span
+                    className="mt-1 inline-block h-2.5 w-2.5 rounded-full"
+                    style={{ background: "var(--accent)" }}
+                    aria-hidden="true"
+                  />
+                </div>
                 <p className="mt-2 text-sm" style={{ color: "var(--muted)" }}>
                   {s.description}
                 </p>
@@ -310,8 +445,28 @@ export default function PresenceDemoRenderer(props: Props) {
           </div>
         </section>
 
-        {/* Why choose us */}
-        <section className="mt-10">
+        {/* Recent work: gallery */}
+        <section className="mt-12">
+          <div className="flex flex-col gap-1">
+            <h2
+              className="text-xl font-semibold tracking-tight"
+              style={{ color: "var(--ink)" }}
+            >
+              Recent Work
+            </h2>
+            <p className="text-sm" style={{ color: "var(--muted)" }}>
+              Proof matters — real photos reduce hesitation and increase quote
+              acceptance.
+            </p>
+          </div>
+
+          <div className="mt-5">
+            <PresenceDemoGallery images={tpl.gallery} />
+          </div>
+        </section>
+
+        {/* Why choose us: premium grid */}
+        <section className="mt-12">
           <div
             className="rounded-3xl border bg-white p-6 shadow-sm sm:p-8"
             style={{ borderColor: "var(--ring)" }}
@@ -320,23 +475,22 @@ export default function PresenceDemoRenderer(props: Props) {
               className="text-xl font-semibold tracking-tight"
               style={{ color: "var(--ink)" }}
             >
-              Why customers choose {tpl.businessName}
+              Why choose {tpl.businessName}
             </h2>
             <p className="mt-2 text-sm" style={{ color: "var(--muted)" }}>
-              Trust signals that reduce hesitation and increase quote
-              acceptance.
+              Trust signals that remove friction and help customers commit.
             </p>
 
-            <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {tpl.trustBullets.map((b) => (
                 <div
                   key={b}
                   className="flex items-start gap-3 rounded-2xl border bg-white p-4"
                   style={{ borderColor: "var(--ring)" }}
                 >
-                  <span
-                    className="mt-1 inline-block h-2.5 w-2.5 rounded-full"
-                    style={{ background: "var(--accent)" }}
+                  <div
+                    className="mt-1.5 h-8 w-8 rounded-xl"
+                    style={{ background: "var(--accentSoft)" }}
                     aria-hidden="true"
                   />
                   <p className="text-sm" style={{ color: "var(--ink)" }}>
@@ -349,22 +503,24 @@ export default function PresenceDemoRenderer(props: Props) {
         </section>
 
         {/* Testimonials */}
-        <section className="mt-10">
-          <h2
-            className="text-xl font-semibold tracking-tight"
-            style={{ color: "var(--ink)" }}
-          >
-            Testimonials
-          </h2>
-          <p className="mt-1 text-sm" style={{ color: "var(--muted)" }}>
-            Social proof that matches what customers look for.
-          </p>
+        <section className="mt-12">
+          <div className="flex flex-col gap-1">
+            <h2
+              className="text-xl font-semibold tracking-tight"
+              style={{ color: "var(--ink)" }}
+            >
+              Testimonials
+            </h2>
+            <p className="text-sm" style={{ color: "var(--muted)" }}>
+              Social proof presented cleanly — like premium lead-gen pages.
+            </p>
+          </div>
 
           <div className="mt-5 grid gap-4 lg:grid-cols-3">
             {tpl.testimonials.map((t, idx) => (
               <div
                 key={`${t.name}-${idx}`}
-                className="rounded-2xl border bg-white p-5 shadow-sm"
+                className="rounded-2xl border bg-white p-6 shadow-sm"
                 style={{ borderColor: "var(--ring)" }}
               >
                 <p
@@ -396,8 +552,8 @@ export default function PresenceDemoRenderer(props: Props) {
           </div>
         </section>
 
-        {/* Quote form (demo-only, no backend) */}
-        <section className="mt-10">
+        {/* Areas covered */}
+        <section className="mt-12">
           <div
             className="rounded-3xl border bg-white p-6 shadow-sm sm:p-8"
             style={{ borderColor: "var(--ring)" }}
@@ -406,89 +562,53 @@ export default function PresenceDemoRenderer(props: Props) {
               className="text-xl font-semibold tracking-tight"
               style={{ color: "var(--ink)" }}
             >
-              Request a Quote
+              Areas covered
             </h2>
             <p className="mt-2 text-sm" style={{ color: "var(--muted)" }}>
-              This is a demo form layout — in a real client site, it can email
-              you or route into WhatsApp.
+              Clear coverage reduces back-and-forth and increases conversions.
             </p>
 
-            <form className="mt-6 grid gap-4 md:grid-cols-2">
-              <label className="grid gap-2">
+            <div className="mt-5 flex flex-wrap gap-2">
+              {tpl.areasCovered.map((a) => (
                 <span
-                  className="text-sm font-semibold"
-                  style={{ color: "var(--ink)" }}
+                  key={a}
+                  className="rounded-full border bg-white px-3 py-1 text-xs"
+                  style={{ borderColor: "var(--ring)", color: "var(--muted)" }}
                 >
-                  Name
+                  {a}
                 </span>
-                <input
-                  className="rounded-xl border px-3 py-2 text-sm"
-                  style={{ borderColor: "var(--ring)" }}
-                  placeholder="Your name"
-                  name="name"
-                />
-              </label>
+              ))}
+            </div>
 
-              <label className="grid gap-2">
-                <span
-                  className="text-sm font-semibold"
-                  style={{ color: "var(--ink)" }}
-                >
-                  Phone
-                </span>
-                <input
-                  className="rounded-xl border px-3 py-2 text-sm"
-                  style={{ borderColor: "var(--ring)" }}
-                  placeholder="Your phone number"
-                  name="phone"
-                />
-              </label>
-
-              <label className="grid gap-2 md:col-span-2">
-                <span
-                  className="text-sm font-semibold"
-                  style={{ color: "var(--ink)" }}
-                >
-                  Message
-                </span>
-                <textarea
-                  className="min-h-[120px] rounded-xl border px-3 py-2 text-sm"
-                  style={{ borderColor: "var(--ring)" }}
-                  placeholder="Tell us what you need (photos help)."
-                  name="message"
-                />
-              </label>
-
-              <div className="md:col-span-2 flex flex-wrap gap-3">
-                <a
-                  href={tpl.contact.whatsappHref}
-                  className="rounded-2xl px-5 py-3 text-sm font-semibold text-white shadow-sm"
-                  style={{ background: "var(--accent)" }}
-                >
-                  Send via WhatsApp
-                </a>
-                <a
-                  href={tpl.contact.phoneHref}
-                  className="rounded-2xl border bg-white px-5 py-3 text-sm font-semibold"
-                  style={{ borderColor: "var(--ring)", color: "var(--ink)" }}
-                >
-                  Call instead
-                </a>
-              </div>
-            </form>
+            <div className="mt-6 flex flex-wrap gap-3">
+              <a
+                href={tpl.contact.whatsappHref}
+                className="rounded-2xl px-5 py-3 text-sm font-semibold text-white shadow-sm"
+                style={{ background: "var(--accent)" }}
+              >
+                WhatsApp for a Quote
+              </a>
+              <a
+                href={tpl.contact.phoneHref}
+                className="rounded-2xl border bg-white px-5 py-3 text-sm font-semibold"
+                style={{ borderColor: "var(--ring)", color: "var(--ink)" }}
+              >
+                Call Now
+              </a>
+            </div>
           </div>
         </section>
 
         {/* Footer disclosure only */}
         <footer
-          className="mt-10 pb-24 text-center text-xs"
+          className="mt-10 pb-8 text-center text-xs"
           style={{ color: "var(--muted)" }}
         >
           {tpl.contact.note}
         </footer>
       </div>
 
-      {/* Sticky CTA (mobile-first conversion) */}
+      {/* Sticky CTA (mobile) */}
       <div
         className="fixed inset-x-0 bottom-0 z-40 border-t bg-white/95 backdrop-blur"
         style={{ borderColor: "var(--ring)" }}
