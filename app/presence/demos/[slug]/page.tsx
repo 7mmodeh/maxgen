@@ -1,9 +1,20 @@
-import { notFound } from "next/navigation";
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import DemoGalleryClient from "./_components/DemoGalleryClient";
-import { getPresenceDemo } from "@/src/lib/presence-demo/templates";
+import {
+  getPresenceDemo,
+  listPresenceDemos,
+} from "@/src/lib/presence-demo/templates";
 
-export const dynamic = "force-dynamic";
+export const dynamic = "force-static";
+
+/**
+ * Required for static export / static builds:
+ * ensures Next pre-generates /presence/demos/{slug} pages at build time.
+ */
+export function generateStaticParams(): Array<{ slug: string }> {
+  return listPresenceDemos().map((d) => ({ slug: d.slug }));
+}
 
 type PageProps = {
   params: { slug: string };
