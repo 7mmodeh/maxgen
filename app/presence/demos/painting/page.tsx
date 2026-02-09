@@ -1,7 +1,7 @@
-import PresenceDemoPage from "../[slug]/page";
+import PresenceDemoRenderer from "../_components/PresenceDemoRenderer";
 
 export const dynamic = "force-dynamic";
 
 export default function PaintingDemoPage() {
-  return <PresenceDemoPage params={{ slug: "painting" }} />;
+  return <PresenceDemoRenderer slug="painting" />;
 }
