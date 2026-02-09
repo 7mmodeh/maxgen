@@ -1,15 +1,19 @@
 import type { PresenceDemoTemplate } from "../types";
-import { gardeningDemo } from "./gardening";
-import { wasteRemovalDemo } from "./waste-removal";
-import { paintingDemo } from "./painting";
+import { gardening } from "./gardening";
+import { painting } from "./painting";
+import { wasteRemoval } from "./waste-removal";
 
-const templates = [gardeningDemo, wasteRemovalDemo, paintingDemo] as const;
-
-export function listPresenceDemos(): readonly PresenceDemoTemplate[] {
-  return templates;
-}
+const registry: Record<string, PresenceDemoTemplate> = {
+  gardening,
+  painting,
+  "waste-removal": wasteRemoval,
+};
 
 export function getPresenceDemo(slug: string): PresenceDemoTemplate | null {
-  const match = templates.find((t) => t.slug === slug);
-  return match ?? null;
+  const key = slug.trim().toLowerCase();
+  return registry[key] ?? null;
+}
+
+export function listPresenceDemos(): readonly PresenceDemoTemplate[] {
+  return Object.values(registry);
 }

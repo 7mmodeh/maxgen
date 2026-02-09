@@ -1,76 +1,81 @@
-export type DemoCta = {
-  label: string;
-  href: string;
-  variant: "primary" | "secondary";
+export type ThemeId = "gardening" | "waste" | "painting" | "premium";
+
+export type LayoutId = "lp_premium" | "split_modern" | "clean_classic";
+
+export type PresenceDemoTheme = {
+  id: ThemeId;
+  accent: string;
+  accentSoft: string;
+  ink: string;
+  muted: string;
+  ring: string;
 };
 
-export type DemoService = {
+export type PresenceDemoHero = {
+  headline: string;
+  subheadline: string;
+  badges: readonly string[];
+};
+
+export type PresenceDemoQuickFacts = {
+  ratingText: string;
+  reviewCountText: string;
+  responseTimeText: string;
+  insuredText: string;
+};
+
+export type PresenceDemoContact = {
+  phone: string;
+  phoneHref: string;
+  whatsappHref: string;
+  note: string;
+};
+
+export type PresenceDemoService = {
   title: string;
   description: string;
 };
 
+/**
+ * Canonical gallery image type used by DemoGalleryClient.
+ * (Matches existing imports: DemoGalleryImage)
+ */
 export type DemoGalleryImage = {
-  src: string; // public/ path
+  src: string;
   alt: string;
   caption?: string;
 };
 
-export type DemoTestimonial = {
+/**
+ * Backwards-compatible alias (in case any file already referenced this name).
+ */
+export type PresenceDemoGalleryImage = DemoGalleryImage;
+
+export type PresenceDemoTestimonial = {
   name: string;
   location?: string;
+  stars: number; // 1..5
   quote: string;
-  stars: 5 | 4;
-};
-
-export type DemoTheme = {
-  id: "garden" | "waste" | "premium";
-  accent: string; // CSS color value e.g. "#16a34a"
-  accentSoft: string; // lighter background tint e.g. "#dcfce7"
-  surface: string; // card surface e.g. "#ffffff"
-  ink: string; // primary text e.g. "#0f172a"
-  muted: string; // secondary text e.g. "#475569"
-  ring: string; // border / divider e.g. "#e2e8f0"
 };
 
 export type PresenceDemoTemplate = {
   slug: string;
+  layoutId: LayoutId;
 
-  // client-facing identity for the demo site
   businessName: string;
-  nicheLabel: string; // e.g. "Gardening & Tree Care"
-  tagline: string; // for gallery cards and meta
+  nicheLabel: string;
 
-  theme: DemoTheme;
+  theme: PresenceDemoTheme;
 
-  hero: {
-    headline: string;
-    subheadline: string;
-    badges: readonly string[];
-    ctas: readonly DemoCta[];
-  };
+  hero: PresenceDemoHero;
+  quickFacts: PresenceDemoQuickFacts;
 
-  quickFacts: {
-    ratingText: string; // e.g. "4.9"
-    reviewCountText: string; // e.g. "120+ reviews"
-    responseTimeText: string; // e.g. "Replies fast"
-    insuredText: string; // e.g. "Fully insured"
-  };
-
-  services: readonly DemoService[];
-  trustBullets: readonly string[];
-  areasCovered: readonly string[];
+  services: readonly PresenceDemoService[];
   gallery: readonly DemoGalleryImage[];
-  testimonials: readonly DemoTestimonial[];
 
-  contact: {
-    phoneDisplay: string;
-    phoneHref: string; // tel:
-    whatsappHref: string; // https://wa.me/...
-    note: string; // demo disclosure
-  };
+  trustBullets: readonly string[];
+  testimonials: readonly PresenceDemoTestimonial[];
+  areasCovered: readonly string[];
 
-  seo: {
-    title: string;
-    description: string;
-  };
+  contact: PresenceDemoContact;
 };
