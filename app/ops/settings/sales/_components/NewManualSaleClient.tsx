@@ -1,3 +1,5 @@
+// app/ops/settings/sales/_components/NewManualSaleClient.tsx
+
 "use client";
 
 import { useMemo, useState } from "react";
