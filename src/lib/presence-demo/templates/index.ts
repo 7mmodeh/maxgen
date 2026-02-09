@@ -13,3 +13,4 @@ export function getPresenceDemo(slug: string): PresenceDemoTemplate | null {
   const match = templates.find((t) => t.slug === slug);
   return match ?? null;
 }
+
