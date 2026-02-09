@@ -40,13 +40,12 @@ export const wasteRemovalDemo: PresenceDemoTemplate = {
     "Offaly",
     "Surrounding areas",
   ],
-  gallery: [
-    { src: "/presence-demos/waste-removal/01.svg", alt: "Clearout demo photo", caption: "House clearout — quick turnaround" },
-    { src: "/presence-demos/waste-removal/02.svg", alt: "Van loading demo photo", caption: "Lift & load — we handle it" },
-    { src: "/presence-demos/waste-removal/03.svg", alt: "Garden waste demo photo", caption: "Garden waste collection" },
-    { src: "/presence-demos/waste-removal/04.svg", alt: "Site waste demo photo", caption: "Construction & site waste" },
-    { src: "/presence-demos/waste-removal/05.svg", alt: "Commercial demo photo", caption: "Commercial clearouts" },
-    { src: "/presence-demos/waste-removal/06.svg", alt: "Coverage demo photo", caption: "Multi-county coverage" },
+    gallery: [
+    { src: "/presence-demos/waste-removal/waste1.jpg", alt: "Waste removal photo 1", caption: "Clearout" },
+    { src: "/presence-demos/waste-removal/waste2.png", alt: "Waste removal photo 2", caption: "Collection" },
+    { src: "/presence-demos/waste-removal/waste3.jpg", alt: "Waste removal photo 3", caption: "Load & remove" },
+    { src: "/presence-demos/waste-removal/waste4.jpg", alt: "Waste removal photo 4", caption: "Site waste" },
+    { src: "/presence-demos/waste-removal/waste5.png", alt: "Waste removal photo 5", caption: "Job done" },
   ],
   contact: {
     phoneDisplay: PHONE_DISPLAY,

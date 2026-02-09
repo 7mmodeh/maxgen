@@ -40,13 +40,12 @@ export const paintingDemo: PresenceDemoTemplate = {
     "Laois",
     "Surrounding areas",
   ],
-  gallery: [
-    { src: "/presence-demos/painting/01.svg", alt: "Before/after demo photo", caption: "Before/after transformation" },
-    { src: "/presence-demos/painting/02.svg", alt: "Panelling demo photo", caption: "Wall panelling finish" },
-    { src: "/presence-demos/painting/03.svg", alt: "Feature wall demo photo", caption: "Feature wall — premium look" },
-    { src: "/presence-demos/painting/04.svg", alt: "Prep work demo photo", caption: "Prep & repair — smooth base" },
-    { src: "/presence-demos/painting/05.svg", alt: "Woodwork demo photo", caption: "Woodwork & trims" },
-    { src: "/presence-demos/painting/06.svg", alt: "Clean finish demo photo", caption: "Clean lines, tidy finish" },
+    gallery: [
+    { src: "/presence-demos/painting/paint1.jpg", alt: "Painting work photo 1", caption: "Before / After" },
+    { src: "/presence-demos/painting/paint2.webp", alt: "Painting work photo 2", caption: "Interior finish" },
+    { src: "/presence-demos/painting/paint3.jpg", alt: "Painting work photo 3", caption: "Clean lines" },
+    { src: "/presence-demos/painting/pain4.jpg", alt: "Painting work photo 4", caption: "Panelling / detail" },
+    { src: "/presence-demos/painting/paint5.jpg", alt: "Painting work photo 5", caption: "Premium finish" },
   ],
   contact: {
     phoneDisplay: PHONE_DISPLAY,

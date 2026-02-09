@@ -2,7 +2,6 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import DemoGalleryClient from "./_components/DemoGalleryClient";
 import { getPresenceDemo } from "@/src/lib/presence-demo/templates";
-import { JSX } from "react";
 
 export const dynamic = "force-dynamic";
 
@@ -10,7 +9,7 @@ type PageProps = {
   params: { slug: string };
 };
 
-export default function PresenceDemoPage(props: PageProps): JSX.Element {
+export default function PresenceDemoPage(props: PageProps) {
   const tpl = getPresenceDemo(props.params.slug);
   if (!tpl) notFound();
 
@@ -64,6 +63,26 @@ export default function PresenceDemoPage(props: PageProps): JSX.Element {
                 {c.label}
               </a>
             ))}
+          </div>
+
+          {/* Docs buttons */}
+          <div className="mt-4 flex flex-wrap gap-3">
+            <a
+              href="/docs/maxgen-presence-sales-sheet.pdf"
+              className="rounded-xl border border-neutral-200 bg-white px-4 py-2 text-sm font-semibold text-neutral-900 hover:bg-neutral-50"
+              target="_blank"
+              rel="noreferrer"
+            >
+              View Sales Sheet (PDF)
+            </a>
+            <a
+              href="/docs/maxgen-presence-handbook.pdf"
+              className="rounded-xl border border-neutral-200 bg-white px-4 py-2 text-sm font-semibold text-neutral-900 hover:bg-neutral-50"
+              target="_blank"
+              rel="noreferrer"
+            >
+              View Handbook (PDF)
+            </a>
           </div>
 
           <div className="mt-6 text-xs text-neutral-500">
@@ -173,7 +192,6 @@ export default function PresenceDemoPage(props: PageProps): JSX.Element {
         </div>
       </section>
 
-      {/* Footer */}
       <footer className="mt-10 pb-10 text-center text-xs text-neutral-500">
         <p>Maxgen Systems — Online Presence Demo</p>
       </footer>

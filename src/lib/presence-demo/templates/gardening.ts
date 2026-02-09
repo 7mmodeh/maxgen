@@ -40,13 +40,12 @@ export const gardeningDemo: PresenceDemoTemplate = {
     "Edenderry",
     "Surrounding areas",
   ],
-  gallery: [
-    { src: "/presence-demos/gardening/01.svg", alt: "Tree trimming demo photo", caption: "Tree trimming & tidy finish" },
-    { src: "/presence-demos/gardening/02.svg", alt: "Hedge cutting demo photo", caption: "Hedge cutting — clean lines" },
-    { src: "/presence-demos/gardening/03.svg", alt: "Garden clearance demo photo", caption: "Garden clearance — before/after" },
-    { src: "/presence-demos/gardening/04.svg", alt: "Power washing demo photo", caption: "Power washing — patio refresh" },
-    { src: "/presence-demos/gardening/05.svg", alt: "Landscaping demo photo", caption: "Landscaping — planting & finish" },
-    { src: "/presence-demos/gardening/06.svg", alt: "Equipment demo photo", caption: "Safety-first equipment" },
+    gallery: [
+    { src: "/presence-demos/gardening/garden1.jpg", alt: "Gardening work photo 1", caption: "Recent work" },
+    { src: "/presence-demos/gardening/garden2.jpg", alt: "Gardening work photo 2", caption: "Recent work" },
+    { src: "/presence-demos/gardening/garden3.jpg", alt: "Gardening work photo 3", caption: "Recent work" },
+    { src: "/presence-demos/gardening/garden4.jpg", alt: "Gardening work photo 4", caption: "Recent work" },
+    { src: "/presence-demos/gardening/garden5.webp", alt: "Gardening work photo 5", caption: "Recent work" },
   ],
   contact: {
     phoneDisplay: PHONE_DISPLAY,
