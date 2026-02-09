@@ -2,7 +2,12 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { supabaseServer } from "@/src/lib/supabase/server";
 import { FadeIn, Stagger, Item } from "./_components/motion";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 function contactEmail(): string {
   return process.env.NEXT_PUBLIC_CONTACT_EMAIL || "info@maxgensys.com";
@@ -28,14 +33,13 @@ type ProductCard = {
   secondaryCta: { label: string; href: string };
   footnote?: string;
   media: {
-    posterSrc: string; // e.g. "/products/qr-studio.png"
-    videoSrc: string; // e.g. "/products/qr-studio.mp4"
+    posterSrc: string;
+    videoSrc: string;
     alt: string;
   };
 };
 
 function isInternalHref(href: string): boolean {
-  // internal routes are relative to site root: "/..."
   return href.startsWith("/") && !href.startsWith("//");
 }
 
@@ -55,7 +59,6 @@ function CtaLink(props: {
     );
   }
 
-  // mailto:, #hash, https://... etc
   const isExternal = href.startsWith("http://") || href.startsWith("https://");
   return (
     <a
@@ -69,7 +72,12 @@ function CtaLink(props: {
   );
 }
 
-export default function Home() {
+export default async function Home() {
+  const sb = await supabaseServer();
+  const { data } = await sb.auth.getUser();
+  const user = data.user ?? null;
+  const authed = !!user;
+
   const heroCards = [
     { k: "Architecture", v: "Systems-first foundations" },
     { k: "Governance", v: "Repeatable operating standards" },
@@ -281,20 +289,39 @@ export default function Home() {
             </a>
 
             <div className="ml-2 flex items-center gap-3">
-              <Link className="text-sm mx-muted hover:opacity-90" href="/login">
-                Login
-              </Link>
-              <Link
-                href="/signup"
-                className="rounded-lg border px-3 py-2 text-sm font-semibold transition"
-                style={{
-                  borderColor: "rgba(255,255,255,0.14)",
-                  color: "rgba(255,255,255,0.9)",
-                  background: "rgba(30,41,59,0.25)",
-                }}
-              >
-                Signup
-              </Link>
+              {authed ? (
+                <a
+                  href="/logout"
+                  className="rounded-lg border px-3 py-2 text-sm font-semibold transition"
+                  style={{
+                    borderColor: "rgba(255,255,255,0.14)",
+                    color: "rgba(255,255,255,0.9)",
+                    background: "rgba(30,41,59,0.25)",
+                  }}
+                >
+                  Sign out
+                </a>
+              ) : (
+                <>
+                  <Link
+                    className="text-sm mx-muted hover:opacity-90"
+                    href="/login"
+                  >
+                    Login
+                  </Link>
+                  <Link
+                    href="/signup"
+                    className="rounded-lg border px-3 py-2 text-sm font-semibold transition"
+                    style={{
+                      borderColor: "rgba(255,255,255,0.14)",
+                      color: "rgba(255,255,255,0.9)",
+                      background: "rgba(30,41,59,0.25)",
+                    }}
+                  >
+                    Signup
+                  </Link>
+                </>
+              )}
 
               <a
                 href="#products"
@@ -306,26 +333,42 @@ export default function Home() {
             </div>
           </nav>
 
-          {/* Mobile auth + CTA (top-right) */}
+          {/* Mobile auth (top-right) */}
           <div className="flex items-center gap-2 md:hidden">
-            <Link
-              href="/login"
-              className="rounded-lg border px-3 py-2 text-xs font-semibold transition"
-              style={{
-                borderColor: "rgba(255,255,255,0.14)",
-                color: "rgba(255,255,255,0.9)",
-                background: "rgba(30,41,59,0.25)",
-              }}
-            >
-              Login
-            </Link>
-            <Link
-              href="/signup"
-              className="rounded-lg px-3 py-2 text-xs font-semibold transition"
-              style={{ background: "var(--mx-cta)", color: "#fff" }}
-            >
-              Signup
-            </Link>
+            {authed ? (
+              <a
+                href="/logout"
+                className="rounded-lg border px-3 py-2 text-xs font-semibold transition"
+                style={{
+                  borderColor: "rgba(255,255,255,0.14)",
+                  color: "rgba(255,255,255,0.9)",
+                  background: "rgba(30,41,59,0.25)",
+                }}
+              >
+                Sign out
+              </a>
+            ) : (
+              <>
+                <Link
+                  href="/login"
+                  className="rounded-lg border px-3 py-2 text-xs font-semibold transition"
+                  style={{
+                    borderColor: "rgba(255,255,255,0.14)",
+                    color: "rgba(255,255,255,0.9)",
+                    background: "rgba(30,41,59,0.25)",
+                  }}
+                >
+                  Login
+                </Link>
+                <Link
+                  href="/signup"
+                  className="rounded-lg px-3 py-2 text-xs font-semibold transition"
+                  style={{ background: "var(--mx-cta)", color: "#fff" }}
+                >
+                  Signup
+                </Link>
+              </>
+            )}
           </div>
         </header>
 
@@ -563,7 +606,6 @@ export default function Home() {
           <div className="mt-8 grid gap-4 md:grid-cols-3">
             {products.map((p) => (
               <Item key={p.title}>
-                {/* group enables hover reveal */}
                 <div
                   className="group h-full rounded-2xl p-6"
                   style={{
@@ -571,7 +613,6 @@ export default function Home() {
                     border: "1px solid rgba(255,255,255,0.08)",
                   }}
                 >
-                  {/* Media */}
                   <div
                     className="relative mb-5 overflow-hidden rounded-xl"
                     style={{
@@ -579,7 +620,6 @@ export default function Home() {
                       background: "rgba(15,23,42,0.55)",
                     }}
                   >
-                    {/* 16:9 aspect */}
                     <div
                       className="relative w-full"
                       style={{ paddingTop: "56.25%" }}
@@ -593,7 +633,6 @@ export default function Home() {
                         priority={p.title === "Online Presence"}
                       />
 
-                      {/* Hover video overlay */}
                       <video
                         className={[
                           "absolute inset-0 h-full w-full object-cover",
@@ -608,7 +647,7 @@ export default function Home() {
                         preload="metadata"
                         autoPlay
                       />
-                      {/* subtle overlay for readability */}
+
                       <div
                         className="absolute inset-0"
                         style={{
@@ -685,7 +724,6 @@ export default function Home() {
                     </CtaLink>
                   </div>
 
-                  {/* tiny hint */}
                   <div className="mt-3 text-[11px] mx-muted opacity-80">
                     Hover to preview.
                   </div>
