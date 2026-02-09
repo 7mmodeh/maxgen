@@ -1,3 +1,5 @@
+// app/presence/demos/[slug]/_components/DemoGalleryClient.tsx
+
 "use client";
 
 import Image from "next/image";
