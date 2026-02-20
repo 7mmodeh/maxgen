@@ -179,32 +179,57 @@ export default async function Home() {
         alt: "QR Studio preview",
       },
     },
+    // {
+    //   title: "Supplies",
+    //   subtitle:
+    //     "B2B sourcing channel for selected partners. Controlled onboarding, verified accounts, and curated inventory.",
+    //   statusLabel: "Invite-only",
+    //   statusTone: "invite",
+    //   bullets: [
+    //     "Private access (approved accounts only)",
+    //     "Wholesale / B2B supply workflows",
+    //     "Account verification and controlled pricing",
+    //     "Limited onboarding capacity",
+    //   ],
+    //   primaryCta: {
+    //     label: "Request access",
+    //     href: mailtoHref({
+    //       subject: "Supplies — Request Access",
+    //       body: "Hi Maxgen Systems,\n\nI would like to request access to Supplies.\n\nBusiness name:\nWebsite (if any):\nIndustry:\nWhat products are you sourcing?\nEstimated monthly volume:\n\nThanks,",
+    //     }),
+    //   },
+    //   secondaryCta: { label: "Contact", href: "#contact" },
+    //   footnote:
+    //     "Supplies is intentionally not public. Access is granted to approved partners only.",
+    //   media: {
+    //     posterSrc: "/products/supplies.png",
+    //     videoSrc: "/products/supplies.mp4",
+    //     alt: "Supplies preview",
+    //   },
+    // },
     {
       title: "Supplies",
       subtitle:
         "B2B sourcing channel for selected partners. Controlled onboarding, verified accounts, and curated inventory.",
-      statusLabel: "Invite-only",
-      statusTone: "invite",
+      statusLabel: "B2B Portal",
+      statusTone: "live",
       bullets: [
-        "Private access (approved accounts only)",
-        "Wholesale / B2B supply workflows",
-        "Account verification and controlled pricing",
-        "Limited onboarding capacity",
+        "Trade-only wholesale access",
+        "Controlled, specification-locked SKUs",
+        "NACE 4652 aligned operations",
+        "Invoice-based ordering workflow",
       ],
-      primaryCta: {
-        label: "Request access",
-        href: mailtoHref({
-          subject: "Supplies — Request Access",
-          body: "Hi Maxgen Systems,\n\nI would like to request access to Supplies.\n\nBusiness name:\nWebsite (if any):\nIndustry:\nWhat products are you sourcing?\nEstimated monthly volume:\n\nThanks,",
-        }),
+      primaryCta: { label: "Open B2B portal", href: "/supplies/b2b" },
+      secondaryCta: {
+        label: "Apply for a trade account",
+        href: "/supplies/apply",
       },
-      secondaryCta: { label: "Contact", href: "#contact" },
       footnote:
-        "Supplies is intentionally not public. Access is granted to approved partners only.",
+        "Designed for verified retailers, repair centres, and resellers. Catalogue access is controlled via trade approval.",
       media: {
         posterSrc: "/products/supplies.png",
         videoSrc: "/products/supplies.mp4",
-        alt: "Supplies preview",
+        alt: "Maxgen Supplies B2B portal preview",
       },
     },
   ] as const;

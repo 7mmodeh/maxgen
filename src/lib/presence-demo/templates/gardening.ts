@@ -125,9 +125,9 @@ export const gardening: PresenceDemoTemplate = {
   ],
 
   contact: {
-    phone: "+353 83 871 8415",
-    phoneHref: "tel:+353838718415",
-    whatsappHref: "https://wa.me/353838718415",
+    phone: "+353 83 322 6565",
+    phoneHref: "tel:+353833226565",
+    whatsappHref: "https://wa.me/353833226565",
     note: "Demo layout — replace with your business details. Built by Maxgen Systems.",
   },
 };
