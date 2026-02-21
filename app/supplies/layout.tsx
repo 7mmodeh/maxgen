@@ -8,22 +8,37 @@ const PHONE_E164 = "+353833226565";
 const PHONE_DISPLAY = "+353 83 322 6565";
 const EMAIL = "info@maxgensys.com";
 
+function IconMail(props: { className?: string }) {
+  const { className } = props;
+  return (
+    <svg viewBox="0 0 24 24" className={className} aria-hidden="true">
+      <path
+        fill="currentColor"
+        d="M20 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2Zm0 3.2-8 5-8-5V6l8 5 8-5v1.2Z"
+      />
+    </svg>
+  );
+}
+
+function IconPhone(props: { className?: string }) {
+  const { className } = props;
+  return (
+    <svg viewBox="0 0 24 24" className={className} aria-hidden="true">
+      <path
+        fill="currentColor"
+        d="M6.6 10.8c1.4 2.7 3.9 5.1 6.6 6.6l2.2-2.2c.3-.3.8-.4 1.2-.2 1.3.5 2.7.8 4.2.8.6 0 1 .4 1 1V21c0 .6-.4 1-1 1C10.4 22 2 13.6 2 3c0-.6.4-1 1-1h3.2c.6 0 1 .4 1 1 0 1.5.3 2.9.8 4.2.1.4 0 .9-.2 1.2l-2.2 2.2Z"
+      />
+    </svg>
+  );
+}
+
 function WhatsAppIcon(props: { className?: string }) {
   const { className } = props;
   return (
-    <svg
-      className={className}
-      viewBox="0 0 32 32"
-      aria-hidden="true"
-      focusable="false"
-    >
+    <svg viewBox="0 0 24 24" className={className} aria-hidden="true">
       <path
         fill="currentColor"
-        d="M19.11 17.41c-.27-.14-1.6-.79-1.85-.88-.25-.09-.43-.14-.61.14-.18.27-.7.88-.86 1.06-.16.18-.32.2-.59.07-.27-.14-1.15-.42-2.19-1.34-.81-.72-1.36-1.61-1.52-1.88-.16-.27-.02-.41.12-.55.12-.12.27-.32.41-.48.14-.16.18-.27.27-.45.09-.18.05-.34-.02-.48-.07-.14-.61-1.47-.84-2.01-.22-.53-.45-.46-.61-.47h-.52c-.18 0-.48.07-.73.34-.25.27-.95.93-.95 2.27 0 1.34.98 2.63 1.12 2.81.14.18 1.92 2.93 4.65 4.11.65.28 1.16.45 1.55.57.65.21 1.25.18 1.72.11.52-.08 1.6-.65 1.83-1.28.23-.63.23-1.17.16-1.28-.07-.11-.25-.18-.52-.32z"
-      />
-      <path
-        fill="currentColor"
-        d="M16.02 5.33c-5.88 0-10.67 4.79-10.67 10.67 0 1.88.49 3.72 1.42 5.34L5.18 26.6l5.42-1.54c1.56.85 3.31 1.3 5.42 1.3 5.88 0 10.67-4.79 10.67-10.67 0-5.88-4.79-10.67-10.67-10.67zm0 19.2c-1.88 0-3.61-.54-5.05-1.46l-.36-.23-3.21.91.94-3.12-.24-.36c-.98-1.48-1.5-3.2-1.5-4.98 0-5.1 4.15-9.25 9.25-9.25 5.1 0 9.25 4.15 9.25 9.25 0 5.1-4.15 9.25-9.25 9.25z"
+        d="M12.04 2C6.51 2 2 6.48 2 12c0 1.99.58 3.84 1.59 5.4L2.5 22l4.79-1.05A10.03 10.03 0 0 0 12.04 22C17.57 22 22 17.52 22 12S17.57 2 12.04 2Zm0 18.2c-1.63 0-3.15-.45-4.46-1.23l-.32-.19-2.84.62.6-2.77-.2-.34A8.15 8.15 0 0 1 3.86 12c0-4.52 3.68-8.2 8.18-8.2 4.5 0 8.18 3.68 8.18 8.2 0 4.52-3.68 8.2-8.18 8.2Zm4.75-6.1c-.26-.13-1.52-.75-1.75-.83-.23-.08-.4-.13-.56.13-.16.26-.65.83-.8 1-.15.17-.3.2-.56.07-.26-.13-1.08-.39-2.06-1.25-.76-.66-1.27-1.48-1.42-1.73-.15-.26-.02-.4.11-.53.11-.11.26-.28.39-.43.13-.15.17-.26.26-.43.08-.17.04-.32-.02-.45-.06-.13-.56-1.34-.77-1.84-.2-.5-.41-.43-.56-.44h-.48c-.17 0-.45.06-.68.32-.23.26-.89.85-.89 2.08s.92 2.41 1.05 2.58c.13.17 1.78 2.69 4.28 3.78.6.26 1.06.42 1.43.53.6.19 1.15.16 1.58.1.48-.07 1.48-.6 1.69-1.18.21-.58.21-1.07.15-1.18-.06-.1-.23-.16-.49-.29Z"
       />
     </svg>
   );
@@ -37,7 +52,7 @@ export default function SuppliesLayout(props: { children: ReactNode }) {
       {/* Header */}
       <header className="sticky top-0 z-50 border-b border-white/10 bg-black/30 backdrop-blur">
         <div className="mx-auto flex w-full max-w-6xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
-          <Link href="/" className="flex items-center gap-3">
+          <Link href="/supplies" className="flex items-center gap-3">
             <div
               className="relative h-9 w-9 overflow-hidden rounded-md"
               style={{
@@ -84,11 +99,14 @@ export default function SuppliesLayout(props: { children: ReactNode }) {
             </Link>
             <Link
               className="text-sm text-white/75 hover:text-white"
-              href="/contact"
+              href="/supplies/contact"
             >
               Contact
             </Link>
-            <Link className="text-sm text-white/75 hover:text-white" href="/">
+            <Link
+              className="text-sm text-white/75 hover:text-white"
+              href="/supplies"
+            >
               Home
             </Link>
 
@@ -105,7 +123,7 @@ export default function SuppliesLayout(props: { children: ReactNode }) {
             </a>
           </nav>
 
-          {/* Mobile dropdown menu (no auth, navigation only) */}
+          {/* Mobile dropdown */}
           <div className="md:hidden">
             <details className="group relative">
               <summary className="list-none">
@@ -138,13 +156,13 @@ export default function SuppliesLayout(props: { children: ReactNode }) {
                     Apply
                   </Link>
                   <Link
-                    href="/contact"
+                    href="/supplies/contact"
                     className="rounded-xl px-3 py-2 text-sm text-white/85 hover:bg-white/10 hover:text-white"
                   >
                     Contact
                   </Link>
                   <Link
-                    href="/"
+                    href="/supplies"
                     className="rounded-xl px-3 py-2 text-sm text-white/85 hover:bg-white/10 hover:text-white"
                   >
                     Home
@@ -171,84 +189,78 @@ export default function SuppliesLayout(props: { children: ReactNode }) {
       {/* Page content */}
       {children}
 
-      {/* Footer */}
+      {/* Footer (COMPACT) */}
       <footer className="border-t border-white/10">
-        <div className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6 lg:px-8">
-          <div className="grid gap-8 md:grid-cols-12 md:items-start">
+        <div className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
+          <div className="grid gap-5 md:grid-cols-12 md:items-center">
             <div className="md:col-span-6">
-              <div className="text-sm font-semibold text-white">
-                Maxgen Supplies — B2B Wholesale Division
+              <div className="text-xs font-semibold text-white">
+                Maxgen Supplies — Dublin, Ireland
               </div>
-              <div className="mt-2 text-sm text-white/70">Dublin, Ireland</div>
 
-              <div className="mt-4 space-y-2 text-sm text-white/75">
-                <div>
-                  Email:{" "}
-                  <a
-                    className="font-semibold text-white/90 underline decoration-white/20 underline-offset-4 hover:decoration-white/60"
-                    href={`mailto:${EMAIL}`}
-                  >
-                    {EMAIL}
-                  </a>
-                </div>
-                <div>
-                  Phone:{" "}
-                  <a
-                    className="font-semibold text-white/90 underline decoration-white/20 underline-offset-4 hover:decoration-white/60"
-                    href={`tel:${PHONE_E164}`}
-                  >
-                    {PHONE_DISPLAY}
-                  </a>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-white/75">WhatsApp:</span>
-                  <a
-                    href={WHATSAPP_URL}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center gap-2 font-semibold text-white/90 underline decoration-white/20 underline-offset-4 hover:decoration-white/60"
-                  >
-                    <WhatsAppIcon className="h-4 w-4" />
-                    {PHONE_DISPLAY}
-                  </a>
-                </div>
+              <div className="mt-3 flex flex-col gap-2 text-xs text-white/70 sm:flex-row sm:flex-wrap sm:items-center">
+                <a
+                  href={`mailto:${EMAIL}`}
+                  className="inline-flex items-center gap-2 hover:text-white"
+                >
+                  <IconMail className="h-4 w-4 text-white/60" />
+                  {EMAIL}
+                </a>
+
+                <span className="hidden sm:inline text-white/30">•</span>
+
+                <a
+                  href={`tel:${PHONE_E164}`}
+                  className="inline-flex items-center gap-2 hover:text-white"
+                >
+                  <IconPhone className="h-4 w-4 text-white/60" />
+                  {PHONE_DISPLAY}
+                </a>
+
+                <span className="hidden sm:inline text-white/30">•</span>
+
+                <a
+                  href={WHATSAPP_URL}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-2 hover:text-white"
+                >
+                  <WhatsAppIcon className="h-4 w-4 text-white/60" />
+                  WhatsApp
+                </a>
               </div>
             </div>
 
-            <div className="md:col-span-6">
-              <div className="flex flex-wrap items-center gap-x-5 gap-y-3 text-sm">
-                {/* CHANGED HERE to /supplies/privacy and /supplies/terms */}
+            <div className="md:col-span-6 md:text-right">
+              <div className="flex flex-wrap gap-x-4 gap-y-2 text-xs md:justify-end">
                 <Link
                   href="/supplies/privacy"
-                  className="text-white/75 underline decoration-white/20 underline-offset-4 hover:text-white hover:decoration-white/60"
+                  className="text-white/70 underline decoration-white/15 underline-offset-4 hover:text-white hover:decoration-white/50"
                 >
                   Privacy
                 </Link>
                 <Link
                   href="/supplies/terms"
-                  className="text-white/75 underline decoration-white/20 underline-offset-4 hover:text-white hover:decoration-white/60"
+                  className="text-white/70 underline decoration-white/15 underline-offset-4 hover:text-white hover:decoration-white/50"
                 >
                   Terms
                 </Link>
                 <Link
-                  href="/contact"
-                  className="text-white/75 underline decoration-white/20 underline-offset-4 hover:text-white hover:decoration-white/60"
+                  href="/supplies/contact"
+                  className="text-white/70 underline decoration-white/15 underline-offset-4 hover:text-white hover:decoration-white/50"
                 >
                   Contact
                 </Link>
                 <Link
-                  href="/"
-                  className="text-white/75 underline decoration-white/20 underline-offset-4 hover:text-white hover:decoration-white/60"
+                  href="/supplies"
+                  className="text-white/70 underline decoration-white/15 underline-offset-4 hover:text-white hover:decoration-white/50"
                 >
                   Home
                 </Link>
               </div>
 
-              <div className="mt-6 text-xs text-white/55">
-                © {new Date().getFullYear()} Maxgen Systems Ltd. All rights
-                reserved.
-                <span className="mx-2">•</span>
-                Maxgen Systems Ltd (Ireland) — CRO: 806565
+              <div className="mt-3 text-[11px] text-white/45">
+                © {new Date().getFullYear()} Maxgen Systems Ltd • CRO: 806565
               </div>
             </div>
           </div>
