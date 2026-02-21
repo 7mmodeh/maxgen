@@ -134,7 +134,7 @@ export default function SuppliesB2BPage() {
                 </Link>
 
                 <Link
-                  href="/contact"
+                  href="/supplies/contact"
                   className="inline-flex items-center justify-center rounded-2xl border border-white/12 bg-white/5 px-5 py-3 text-sm font-semibold text-white/90 transition hover:bg-white/8 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30"
                 >
                   Request Wholesale Information

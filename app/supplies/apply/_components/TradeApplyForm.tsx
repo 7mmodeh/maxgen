@@ -459,7 +459,7 @@ export default function TradeApplyForm() {
               Opens your email client with a formatted application.
             </div>
             <Link
-              href="/contact"
+              href="/supplies/contact"
               className="text-xs font-semibold text-white/80 underline decoration-white/20 underline-offset-4 hover:decoration-white/60"
             >
               Prefer to contact us first?
