@@ -39,26 +39,17 @@ type FormState = {
   notes: string;
 };
 
-const WHATSAPP_URL = "https://wa.me/353833226565";
-const WHATSAPP_PREFILL =
+const WHATSAPP_HREF =
   "https://wa.me/353833226565?text=Hi%20Maxgen%20Supplies%2C%20I%20want%20to%20apply%20for%20a%20B2B%20trade%20account.%20Please%20advise%20the%20next%20steps.";
+const PHONE_DISPLAY = "+353 83 322 6565";
 
 function WhatsAppIcon(props: { className?: string }) {
   const { className } = props;
   return (
-    <svg
-      className={className}
-      viewBox="0 0 32 32"
-      aria-hidden="true"
-      focusable="false"
-    >
+    <svg viewBox="0 0 24 24" className={className} aria-hidden="true">
       <path
         fill="currentColor"
-        d="M19.11 17.41c-.27-.14-1.6-.79-1.85-.88-.25-.09-.43-.14-.61.14-.18.27-.7.88-.86 1.06-.16.18-.32.2-.59.07-.27-.14-1.15-.42-2.19-1.34-.81-.72-1.36-1.61-1.52-1.88-.16-.27-.02-.41.12-.55.12-.12.27-.32.41-.48.14-.16.18-.27.27-.45.09-.18.05-.34-.02-.48-.07-.14-.61-1.47-.84-2.01-.22-.53-.45-.46-.61-.47h-.52c-.18 0-.48.07-.73.34-.25.27-.95.93-.95 2.27 0 1.34.98 2.63 1.12 2.81.14.18 1.92 2.93 4.65 4.11.65.28 1.16.45 1.55.57.65.21 1.25.18 1.72.11.52-.08 1.6-.65 1.83-1.28.23-.63.23-1.17.16-1.28-.07-.11-.25-.18-.52-.32z"
-      />
-      <path
-        fill="currentColor"
-        d="M16.02 5.33c-5.88 0-10.67 4.79-10.67 10.67 0 1.88.49 3.72 1.42 5.34L5.18 26.6l5.42-1.54c1.56.85 3.31 1.3 5.42 1.3 5.88 0 10.67-4.79 10.67-10.67 0-5.88-4.79-10.67-10.67-10.67zm0 19.2c-1.88 0-3.61-.54-5.05-1.46l-.36-.23-3.21.91.94-3.12-.24-.36c-.98-1.48-1.5-3.2-1.5-4.98 0-5.1 4.15-9.25 9.25-9.25 5.1 0 9.25 4.15 9.25 9.25 0 5.1-4.15 9.25-9.25 9.25z"
+        d="M12.04 2C6.51 2 2 6.48 2 12c0 1.99.58 3.84 1.59 5.4L2.5 22l4.79-1.05A10.03 10.03 0 0 0 12.04 22C17.57 22 22 17.52 22 12S17.57 2 12.04 2Zm0 18.2c-1.63 0-3.15-.45-4.46-1.23l-.32-.19-2.84.62.6-2.77-.2-.34A8.15 8.15 0 0 1 3.86 12c0-4.52 3.68-8.2 8.18-8.2 4.5 0 8.18 3.68 8.18 8.2 0 4.52-3.68 8.2-8.18 8.2Zm4.75-6.1c-.26-.13-1.52-.75-1.75-.83-.23-.08-.4-.13-.56.13-.16.26-.65.83-.8 1-.15.17-.3.2-.56.07-.26-.13-1.08-.39-2.06-1.25-.76-.66-1.27-1.48-1.42-1.73-.15-.26-.02-.4.11-.53.11-.11.26-.28.39-.43.13-.15.17-.26.26-.43.08-.17.04-.32-.02-.45-.06-.13-.56-1.34-.77-1.84-.2-.5-.41-.43-.56-.44h-.48c-.17 0-.45.06-.68.32-.23.26-.89.85-.89 2.08s.92 2.41 1.05 2.58c.13.17 1.78 2.69 4.28 3.78.6.26 1.06.42 1.43.53.6.19 1.15.16 1.58.1.48-.07 1.48-.6 1.69-1.18.21-.58.21-1.07.15-1.18-.06-.1-.23-.16-.49-.29Z"
       />
     </svg>
   );
@@ -264,7 +255,7 @@ export default function TradeApplyForm() {
 
   return (
     <FadeIn>
-      <div className="rounded-3xl border border-white/10 bg-[color:var(--mx-surface)]/40 p-6 sm:p-8 lg:p-10 shadow-[0_0_0_1px_rgba(255,255,255,0.02),0_18px_60px_rgba(0,0,0,0.35)]">
+      <div className="rounded-3xl border border-white/10 bg-[color:var(--mx-surface)]/40 p-6 shadow-[0_0_0_1px_rgba(255,255,255,0.02),0_18px_60px_rgba(0,0,0,0.35)] sm:p-8 lg:p-10">
         <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
           <div className="max-w-3xl">
             <h2 className="mx-h2">Application details</h2>
@@ -308,8 +299,9 @@ export default function TradeApplyForm() {
               <div className="text-xs font-semibold text-white/70">
                 WhatsApp Business
               </div>
+
               <a
-                href={WHATSAPP_PREFILL}
+                href={WHATSAPP_HREF}
                 target="_blank"
                 rel="noreferrer"
                 className="mt-2 inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-white/12 bg-white/5 px-4 py-2.5 text-sm font-semibold text-white/90 transition hover:bg-white/8 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30"
@@ -317,9 +309,9 @@ export default function TradeApplyForm() {
                 <WhatsAppIcon className="h-4 w-4" />
                 Message on WhatsApp
               </a>
-              <div className="mt-2 text-xs text-white/55">
-                {WHATSAPP_URL} • +353 83 322 6565
-              </div>
+
+              {/* Keep ONLY the phone number text (no wa.me link shown) */}
+              <div className="mt-2 text-xs text-white/55">{PHONE_DISPLAY}</div>
             </div>
           </div>
         </div>
