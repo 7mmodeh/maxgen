@@ -22,7 +22,7 @@ export default function TradeApplyPage() {
         <div className="absolute inset-0 opacity-30 [background-image:linear-gradient(to_right,rgba(255,255,255,0.06)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.06)_1px,transparent_1px)] [background-size:56px_56px]" />
       </div>
 
-      <header className="relative mx-auto w-full max-w-6xl px-4 pb-10 pt-16 sm:px-6 sm:pb-12 sm:pt-20 lg:px-8">
+      <header className="relative mx-auto w-full max-w-6xl px-4 pb-10 pt-12 sm:px-6 sm:pb-12 sm:pt-14 lg:px-8">
         <FadeIn>
           <div className="inline-flex w-fit items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/80">
             <span className="h-1.5 w-1.5 rounded-full bg-[color:var(--mx-light-accent)]" />

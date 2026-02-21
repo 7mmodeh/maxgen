@@ -39,6 +39,31 @@ type FormState = {
   notes: string;
 };
 
+const WHATSAPP_URL = "https://wa.me/353833226565";
+const WHATSAPP_PREFILL =
+  "https://wa.me/353833226565?text=Hi%20Maxgen%20Supplies%2C%20I%20want%20to%20apply%20for%20a%20B2B%20trade%20account.%20Please%20advise%20the%20next%20steps.";
+
+function WhatsAppIcon(props: { className?: string }) {
+  const { className } = props;
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 32 32"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path
+        fill="currentColor"
+        d="M19.11 17.41c-.27-.14-1.6-.79-1.85-.88-.25-.09-.43-.14-.61.14-.18.27-.7.88-.86 1.06-.16.18-.32.2-.59.07-.27-.14-1.15-.42-2.19-1.34-.81-.72-1.36-1.61-1.52-1.88-.16-.27-.02-.41.12-.55.12-.12.27-.32.41-.48.14-.16.18-.27.27-.45.09-.18.05-.34-.02-.48-.07-.14-.61-1.47-.84-2.01-.22-.53-.45-.46-.61-.47h-.52c-.18 0-.48.07-.73.34-.25.27-.95.93-.95 2.27 0 1.34.98 2.63 1.12 2.81.14.18 1.92 2.93 4.65 4.11.65.28 1.16.45 1.55.57.65.21 1.25.18 1.72.11.52-.08 1.6-.65 1.83-1.28.23-.63.23-1.17.16-1.28-.07-.11-.25-.18-.52-.32z"
+      />
+      <path
+        fill="currentColor"
+        d="M16.02 5.33c-5.88 0-10.67 4.79-10.67 10.67 0 1.88.49 3.72 1.42 5.34L5.18 26.6l5.42-1.54c1.56.85 3.31 1.3 5.42 1.3 5.88 0 10.67-4.79 10.67-10.67 0-5.88-4.79-10.67-10.67-10.67zm0 19.2c-1.88 0-3.61-.54-5.05-1.46l-.36-.23-3.21.91.94-3.12-.24-.36c-.98-1.48-1.5-3.2-1.5-4.98 0-5.1 4.15-9.25 9.25-9.25 5.1 0 9.25 4.15 9.25 9.25 0 5.1-4.15 9.25-9.25 9.25z"
+      />
+    </svg>
+  );
+}
+
 function mailtoHref(args: { subject: string; body?: string }): string {
   const email = "info@maxgensys.com";
   const subject = encodeURIComponent(args.subject);
@@ -284,14 +309,17 @@ export default function TradeApplyForm() {
                 WhatsApp Business
               </div>
               <a
-                href="https://wa.me/353833226565?text=Hi%20Maxgen%20Supplies%2C%20I%20want%20to%20apply%20for%20a%20B2B%20trade%20account.%20Please%20advise%20the%20next%20steps."
+                href={WHATSAPP_PREFILL}
                 target="_blank"
                 rel="noreferrer"
-                className="mt-2 inline-flex w-full items-center justify-center rounded-2xl border border-white/12 bg-white/5 px-4 py-2.5 text-sm font-semibold text-white/90 transition hover:bg-white/8 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30"
+                className="mt-2 inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-white/12 bg-white/5 px-4 py-2.5 text-sm font-semibold text-white/90 transition hover:bg-white/8 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30"
               >
+                <WhatsAppIcon className="h-4 w-4" />
                 Message on WhatsApp
               </a>
-              <div className="mt-2 text-xs text-white/55">+353 83 322 6565</div>
+              <div className="mt-2 text-xs text-white/55">
+                {WHATSAPP_URL} • +353 83 322 6565
+              </div>
             </div>
           </div>
         </div>

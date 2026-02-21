@@ -93,7 +93,7 @@ export default function SuppliesB2BPage() {
       </div>
 
       {/* Header / Hero */}
-      <header className="relative mx-auto w-full max-w-6xl px-4 pb-10 pt-16 sm:px-6 sm:pb-14 sm:pt-20 lg:px-8">
+      <header className="relative mx-auto w-full max-w-6xl px-4 pb-10 pt-12 sm:px-6 sm:pb-14 sm:pt-14 lg:px-8">
         <div className="flex flex-col gap-10">
           <FadeIn>
             <div className="flex flex-col gap-6">

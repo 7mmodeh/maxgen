@@ -64,7 +64,7 @@ export default function SuppliesDivisionOverviewPage() {
       </div>
 
       {/* Hero */}
-      <header className="relative mx-auto w-full max-w-6xl px-4 pb-10 pt-16 sm:px-6 sm:pb-14 sm:pt-20 lg:px-8">
+      <header className="relative mx-auto w-full max-w-6xl px-4 pb-10 pt-12 sm:px-6 sm:pb-14 sm:pt-14 lg:px-8">
         <FadeIn>
           <div className="inline-flex w-fit items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/80">
             <span className="h-1.5 w-1.5 rounded-full bg-[color:var(--mx-light-accent)]" />
