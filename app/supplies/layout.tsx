@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -9,6 +10,15 @@ const WHATSAPP_URL = "https://wa.me/353833226565";
 const PHONE_E164 = "+353833226565";
 const PHONE_DISPLAY = "+353 83 322 6565";
 const EMAIL = "info@maxgensys.com";
+
+type NavItem = { href: string; label: string };
+
+const NAV_ITEMS: readonly NavItem[] = [
+  { href: "/supplies", label: "Overview" },
+  { href: "/supplies/b2b", label: "B2B Portal" },
+  { href: "/supplies/apply", label: "Apply" },
+  { href: "/supplies/contact", label: "Contact" },
+] as const;
 
 function WhatsAppIcon(props: { className?: string }) {
   const { className } = props;
@@ -22,38 +32,61 @@ function WhatsAppIcon(props: { className?: string }) {
   );
 }
 
-function NavLink({
-  href,
-  label,
-  pathname,
-}: {
+function isActiveRoute(pathname: string, href: string): boolean {
+  // Critical fix: Overview must be exact ONLY.
+  if (href === "/supplies") return pathname === "/supplies";
+  return pathname === href || pathname.startsWith(href + "/");
+}
+
+function NavLink(props: {
   href: string;
   label: string;
   pathname: string;
+  onClick?: () => void;
 }) {
-  const isActive = pathname === href || pathname.startsWith(href + "/");
+  const { href, label, pathname, onClick } = props;
+
+  const active = isActiveRoute(pathname, href);
 
   return (
     <Link
       href={href}
-      className={`relative text-sm transition ${
-        isActive ? "text-white font-semibold" : "text-white/70 hover:text-white"
-      }`}
+      onClick={onClick}
+      className={[
+        "relative inline-flex items-center rounded-xl px-2.5 py-2 text-sm transition",
+        active ? "text-white font-semibold" : "text-white/75 hover:text-white",
+        // Subtle hover glow (active stronger, inactive softer)
+        active
+          ? "hover:shadow-[0_0_0_4px_rgba(56,189,248,0.12)]"
+          : "hover:shadow-[0_0_0_4px_rgba(255,255,255,0.06)]",
+      ].join(" ")}
     >
       {label}
 
-      {isActive && (
+      {active ? (
         <span
-          className="absolute -bottom-2 left-0 h-[2px] w-full rounded-full"
+          className="absolute -bottom-1 left-2 right-2 h-[2px] rounded-full"
           style={{ background: "var(--mx-light-accent)" }}
         />
-      )}
+      ) : null}
     </Link>
   );
 }
 
-export default function SuppliesLayout({ children }: { children: ReactNode }) {
-  const pathname = usePathname() ?? "";
+export default function SuppliesLayout(props: { children: ReactNode }) {
+  const { children } = props;
+  const pathnameRaw = usePathname();
+  const pathname = pathnameRaw ?? "";
+
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  const mobileButtonLabel = useMemo(() => {
+    const active = NAV_ITEMS.find((x) => isActiveRoute(pathname, x.href));
+    return active ? active.label : "Menu";
+  }, [pathname]);
+
+  const closeMobile = () => setMobileOpen(false);
+  const toggleMobile = () => setMobileOpen((v) => !v);
 
   return (
     <div style={{ background: "var(--mx-bg)", color: "var(--mx-text)" }}>
@@ -81,65 +114,69 @@ export default function SuppliesLayout({ children }: { children: ReactNode }) {
           </Link>
 
           {/* Desktop Nav */}
-          <nav className="hidden items-center gap-6 md:flex">
-            <NavLink href="/supplies" label="Overview" pathname={pathname} />
-            <NavLink
-              href="/supplies/b2b"
-              label="B2B Portal"
-              pathname={pathname}
-            />
-            <NavLink href="/supplies/apply" label="Apply" pathname={pathname} />
-            <NavLink
-              href="/supplies/contact"
-              label="Contact"
-              pathname={pathname}
-            />
+          <nav className="hidden items-center gap-2 md:flex">
+            {NAV_ITEMS.map((x) => (
+              <NavLink
+                key={x.href}
+                href={x.href}
+                label={x.label}
+                pathname={pathname}
+              />
+            ))}
 
             <a
               href={WHATSAPP_URL}
               target="_blank"
               rel="noreferrer"
-              className="ml-3 inline-flex items-center gap-2 rounded-xl border border-white/12 bg-white/5 px-3 py-2 text-sm font-semibold text-white/90 transition hover:bg-white/10"
+              className="ml-3 inline-flex items-center gap-2 rounded-xl border border-white/12 bg-white/5 px-3 py-2 text-sm font-semibold text-white/90 transition hover:bg-white/10 hover:shadow-[0_0_0_4px_rgba(56,189,248,0.10)]"
             >
               <WhatsAppIcon className="h-4 w-4" />
               WhatsApp
             </a>
           </nav>
 
-          {/* Mobile */}
-          <div className="md:hidden">
-            <details className="group relative">
-              <summary className="list-none">
-                <span className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-white/12 bg-white/5 px-3 py-2 text-xs font-semibold text-white/90">
-                  Menu
-                </span>
-              </summary>
+          {/* Mobile Nav */}
+          <div className="relative md:hidden">
+            <button
+              type="button"
+              onClick={toggleMobile}
+              className="inline-flex items-center gap-2 rounded-xl border border-white/12 bg-white/5 px-3 py-2 text-xs font-semibold text-white/90 transition hover:bg-white/10"
+              aria-expanded={mobileOpen}
+              aria-controls="supplies-mobile-menu"
+            >
+              {mobileButtonLabel}
+              <span className="text-white/60">{mobileOpen ? "▲" : "▼"}</span>
+            </button>
 
-              <div className="absolute right-0 mt-2 w-64 overflow-hidden rounded-2xl border border-white/12 bg-black/80 backdrop-blur">
-                <div className="flex flex-col p-2 text-sm">
-                  <NavLink
-                    href="/supplies"
-                    label="Overview"
-                    pathname={pathname}
-                  />
-                  <NavLink
-                    href="/supplies/b2b"
-                    label="B2B Portal"
-                    pathname={pathname}
-                  />
-                  <NavLink
-                    href="/supplies/apply"
-                    label="Apply"
-                    pathname={pathname}
-                  />
-                  <NavLink
-                    href="/supplies/contact"
-                    label="Contact"
-                    pathname={pathname}
-                  />
+            {mobileOpen ? (
+              <div
+                id="supplies-mobile-menu"
+                className="absolute right-0 mt-2 w-64 overflow-hidden rounded-2xl border border-white/12 bg-black/80 p-2 backdrop-blur"
+              >
+                <div className="flex flex-col">
+                  {NAV_ITEMS.map((x) => (
+                    <NavLink
+                      key={x.href}
+                      href={x.href}
+                      label={x.label}
+                      pathname={pathname}
+                      onClick={closeMobile} // ✅ auto close on click
+                    />
+                  ))}
+
+                  <a
+                    href={WHATSAPP_URL}
+                    target="_blank"
+                    rel="noreferrer"
+                    onClick={closeMobile}
+                    className="mt-1 inline-flex items-center gap-2 rounded-xl px-2.5 py-2 text-sm font-semibold text-white/90 transition hover:bg-white/10 hover:shadow-[0_0_0_4px_rgba(56,189,248,0.10)]"
+                  >
+                    <WhatsAppIcon className="h-4 w-4" />
+                    WhatsApp
+                  </a>
                 </div>
               </div>
-            </details>
+            ) : null}
           </div>
         </div>
       </header>
@@ -149,7 +186,7 @@ export default function SuppliesLayout({ children }: { children: ReactNode }) {
       {/* Compact Footer */}
       <footer className="border-t border-white/10">
         <div className="mx-auto w-full max-w-6xl px-4 py-6 text-xs text-white/60 sm:px-6 lg:px-8">
-          <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>Maxgen Supplies — Dublin, Ireland</div>
 
             <div className="flex flex-wrap gap-4">
