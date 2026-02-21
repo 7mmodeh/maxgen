@@ -2,7 +2,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { FadeIn, Stagger, Item } from "../../../_components/motion";
+import { FadeIn, Stagger, Item } from "../../_components/motion";
 
 export const metadata: Metadata = {
   title:
