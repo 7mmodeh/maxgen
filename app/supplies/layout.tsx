@@ -1,36 +1,14 @@
-// app/supplies/layout.tsx
+"use client";
+
 import type { ReactNode } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 
 const WHATSAPP_URL = "https://wa.me/353833226565";
 const PHONE_E164 = "+353833226565";
 const PHONE_DISPLAY = "+353 83 322 6565";
 const EMAIL = "info@maxgensys.com";
-
-function IconMail(props: { className?: string }) {
-  const { className } = props;
-  return (
-    <svg viewBox="0 0 24 24" className={className} aria-hidden="true">
-      <path
-        fill="currentColor"
-        d="M20 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2Zm0 3.2-8 5-8-5V6l8 5 8-5v1.2Z"
-      />
-    </svg>
-  );
-}
-
-function IconPhone(props: { className?: string }) {
-  const { className } = props;
-  return (
-    <svg viewBox="0 0 24 24" className={className} aria-hidden="true">
-      <path
-        fill="currentColor"
-        d="M6.6 10.8c1.4 2.7 3.9 5.1 6.6 6.6l2.2-2.2c.3-.3.8-.4 1.2-.2 1.3.5 2.7.8 4.2.8.6 0 1 .4 1 1V21c0 .6-.4 1-1 1C10.4 22 2 13.6 2 3c0-.6.4-1 1-1h3.2c.6 0 1 .4 1 1 0 1.5.3 2.9.8 4.2.1.4 0 .9-.2 1.2l-2.2 2.2Z"
-      />
-    </svg>
-  );
-}
 
 function WhatsAppIcon(props: { className?: string }) {
   const { className } = props;
@@ -44,22 +22,47 @@ function WhatsAppIcon(props: { className?: string }) {
   );
 }
 
-export default function SuppliesLayout(props: { children: ReactNode }) {
-  const { children } = props;
+function NavLink({
+  href,
+  label,
+  pathname,
+}: {
+  href: string;
+  label: string;
+  pathname: string;
+}) {
+  const isActive = pathname === href || pathname.startsWith(href + "/");
+
+  return (
+    <Link
+      href={href}
+      className={`relative text-sm transition ${
+        isActive ? "text-white font-semibold" : "text-white/70 hover:text-white"
+      }`}
+    >
+      {label}
+
+      {isActive && (
+        <span
+          className="absolute -bottom-2 left-0 h-[2px] w-full rounded-full"
+          style={{ background: "var(--mx-light-accent)" }}
+        />
+      )}
+    </Link>
+  );
+}
+
+export default function SuppliesLayout({ children }: { children: ReactNode }) {
+  const pathname = usePathname() ?? "";
 
   return (
     <div style={{ background: "var(--mx-bg)", color: "var(--mx-text)" }}>
       {/* Header */}
       <header className="sticky top-0 z-50 border-b border-white/10 bg-black/30 backdrop-blur">
         <div className="mx-auto flex w-full max-w-6xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
+          {/* Logo (Home -> /supplies) */}
           <Link href="/supplies" className="flex items-center gap-3">
-            <div
-              className="relative h-9 w-9 overflow-hidden rounded-md"
-              style={{
-                background: "rgba(255,255,255,0.04)",
-                border: "1px solid rgba(255,255,255,0.10)",
-              }}
-            >
+            <div className="relative h-9 w-9 overflow-hidden rounded-md border border-white/10 bg-white/5">
               <Image
                 src="/logo.png"
                 alt="Maxgen Systems"
@@ -77,108 +80,63 @@ export default function SuppliesLayout(props: { children: ReactNode }) {
             </div>
           </Link>
 
-          {/* Desktop nav */}
-          <nav className="hidden items-center gap-5 md:flex">
-            <Link
-              className="text-sm text-white/75 hover:text-white"
-              href="/supplies"
-            >
-              Overview
-            </Link>
-            <Link
-              className="text-sm text-white/75 hover:text-white"
+          {/* Desktop Nav */}
+          <nav className="hidden items-center gap-6 md:flex">
+            <NavLink href="/supplies" label="Overview" pathname={pathname} />
+            <NavLink
               href="/supplies/b2b"
-            >
-              B2B Portal
-            </Link>
-            <Link
-              className="text-sm text-white/75 hover:text-white"
-              href="/supplies/apply"
-            >
-              Apply
-            </Link>
-            <Link
-              className="text-sm text-white/75 hover:text-white"
+              label="B2B Portal"
+              pathname={pathname}
+            />
+            <NavLink href="/supplies/apply" label="Apply" pathname={pathname} />
+            <NavLink
               href="/supplies/contact"
-            >
-              Contact
-            </Link>
-            <Link
-              className="text-sm text-white/75 hover:text-white"
-              href="/supplies"
-            >
-              Home
-            </Link>
+              label="Contact"
+              pathname={pathname}
+            />
 
             <a
               href={WHATSAPP_URL}
               target="_blank"
               rel="noreferrer"
-              className="ml-2 inline-flex items-center gap-2 rounded-xl border border-white/12 bg-white/5 px-3 py-2 text-sm font-semibold text-white/90 transition hover:bg-white/10"
-              aria-label="WhatsApp"
-              title="WhatsApp"
+              className="ml-3 inline-flex items-center gap-2 rounded-xl border border-white/12 bg-white/5 px-3 py-2 text-sm font-semibold text-white/90 transition hover:bg-white/10"
             >
               <WhatsAppIcon className="h-4 w-4" />
               WhatsApp
             </a>
           </nav>
 
-          {/* Mobile dropdown */}
+          {/* Mobile */}
           <div className="md:hidden">
             <details className="group relative">
               <summary className="list-none">
-                <span className="inline-flex cursor-pointer select-none items-center gap-2 rounded-xl border border-white/12 bg-white/5 px-3 py-2 text-xs font-semibold text-white/90 transition hover:bg-white/10">
+                <span className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-white/12 bg-white/5 px-3 py-2 text-xs font-semibold text-white/90">
                   Menu
-                  <span className="text-white/60 transition group-open:rotate-180">
-                    ▾
-                  </span>
                 </span>
               </summary>
 
-              <div className="absolute right-0 mt-2 w-64 overflow-hidden rounded-2xl border border-white/12 bg-black/80 backdrop-blur shadow-[0_18px_60px_rgba(0,0,0,0.45)]">
-                <div className="flex flex-col p-2">
-                  <Link
+              <div className="absolute right-0 mt-2 w-64 overflow-hidden rounded-2xl border border-white/12 bg-black/80 backdrop-blur">
+                <div className="flex flex-col p-2 text-sm">
+                  <NavLink
                     href="/supplies"
-                    className="rounded-xl px-3 py-2 text-sm text-white/85 hover:bg-white/10 hover:text-white"
-                  >
-                    Overview
-                  </Link>
-                  <Link
+                    label="Overview"
+                    pathname={pathname}
+                  />
+                  <NavLink
                     href="/supplies/b2b"
-                    className="rounded-xl px-3 py-2 text-sm text-white/85 hover:bg-white/10 hover:text-white"
-                  >
-                    B2B Portal
-                  </Link>
-                  <Link
+                    label="B2B Portal"
+                    pathname={pathname}
+                  />
+                  <NavLink
                     href="/supplies/apply"
-                    className="rounded-xl px-3 py-2 text-sm text-white/85 hover:bg-white/10 hover:text-white"
-                  >
-                    Apply
-                  </Link>
-                  <Link
+                    label="Apply"
+                    pathname={pathname}
+                  />
+                  <NavLink
                     href="/supplies/contact"
-                    className="rounded-xl px-3 py-2 text-sm text-white/85 hover:bg-white/10 hover:text-white"
-                  >
-                    Contact
-                  </Link>
-                  <Link
-                    href="/supplies"
-                    className="rounded-xl px-3 py-2 text-sm text-white/85 hover:bg-white/10 hover:text-white"
-                  >
-                    Home
-                  </Link>
-
-                  <div className="my-2 h-px bg-white/10" />
-
-                  <a
-                    href={WHATSAPP_URL}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold text-white/90 hover:bg-white/10"
-                  >
-                    <WhatsAppIcon className="h-4 w-4" />
-                    WhatsApp
-                  </a>
+                    label="Contact"
+                    pathname={pathname}
+                  />
                 </div>
               </div>
             </details>
@@ -186,83 +144,40 @@ export default function SuppliesLayout(props: { children: ReactNode }) {
         </div>
       </header>
 
-      {/* Page content */}
       {children}
 
-      {/* Footer (COMPACT) */}
+      {/* Compact Footer */}
       <footer className="border-t border-white/10">
-        <div className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
-          <div className="grid gap-5 md:grid-cols-12 md:items-center">
-            <div className="md:col-span-6">
-              <div className="text-xs font-semibold text-white">
-                Maxgen Supplies — Dublin, Ireland
-              </div>
+        <div className="mx-auto w-full max-w-6xl px-4 py-6 text-xs text-white/60 sm:px-6 lg:px-8">
+          <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center">
+            <div>Maxgen Supplies — Dublin, Ireland</div>
 
-              <div className="mt-3 flex flex-col gap-2 text-xs text-white/70 sm:flex-row sm:flex-wrap sm:items-center">
-                <a
-                  href={`mailto:${EMAIL}`}
-                  className="inline-flex items-center gap-2 hover:text-white"
-                >
-                  <IconMail className="h-4 w-4 text-white/60" />
-                  {EMAIL}
-                </a>
-
-                <span className="hidden sm:inline text-white/30">•</span>
-
-                <a
-                  href={`tel:${PHONE_E164}`}
-                  className="inline-flex items-center gap-2 hover:text-white"
-                >
-                  <IconPhone className="h-4 w-4 text-white/60" />
-                  {PHONE_DISPLAY}
-                </a>
-
-                <span className="hidden sm:inline text-white/30">•</span>
-
-                <a
-                  href={WHATSAPP_URL}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center gap-2 hover:text-white"
-                >
-                  <WhatsAppIcon className="h-4 w-4 text-white/60" />
-                  WhatsApp
-                </a>
-              </div>
+            <div className="flex flex-wrap gap-4">
+              <a href={`mailto:${EMAIL}`} className="hover:text-white">
+                {EMAIL}
+              </a>
+              <a href={`tel:${PHONE_E164}`} className="hover:text-white">
+                {PHONE_DISPLAY}
+              </a>
+              <a
+                href={WHATSAPP_URL}
+                target="_blank"
+                rel="noreferrer"
+                className="hover:text-white"
+              >
+                WhatsApp
+              </a>
+              <Link href="/supplies/privacy" className="hover:text-white">
+                Privacy
+              </Link>
+              <Link href="/supplies/terms" className="hover:text-white">
+                Terms
+              </Link>
             </div>
+          </div>
 
-            <div className="md:col-span-6 md:text-right">
-              <div className="flex flex-wrap gap-x-4 gap-y-2 text-xs md:justify-end">
-                <Link
-                  href="/supplies/privacy"
-                  className="text-white/70 underline decoration-white/15 underline-offset-4 hover:text-white hover:decoration-white/50"
-                >
-                  Privacy
-                </Link>
-                <Link
-                  href="/supplies/terms"
-                  className="text-white/70 underline decoration-white/15 underline-offset-4 hover:text-white hover:decoration-white/50"
-                >
-                  Terms
-                </Link>
-                <Link
-                  href="/supplies/contact"
-                  className="text-white/70 underline decoration-white/15 underline-offset-4 hover:text-white hover:decoration-white/50"
-                >
-                  Contact
-                </Link>
-                <Link
-                  href="/supplies"
-                  className="text-white/70 underline decoration-white/15 underline-offset-4 hover:text-white hover:decoration-white/50"
-                >
-                  Home
-                </Link>
-              </div>
-
-              <div className="mt-3 text-[11px] text-white/45">
-                © {new Date().getFullYear()} Maxgen Systems Ltd • CRO: 806565
-              </div>
-            </div>
+          <div className="mt-3 text-[11px] text-white/40">
+            © {new Date().getFullYear()} Maxgen Systems Ltd • CRO: 806565
           </div>
         </div>
       </footer>
